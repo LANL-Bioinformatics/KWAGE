@@ -23,9 +23,17 @@ INC = -I. -I$(HOME)/zlib/include
 	
 LIBS = -lm $(HOME)/zlib/lib/libz.a
 
+# Edit the SRA_LIB_PATH variable to point to the directory on your system that contains
+# the SRA library files
+SRA_LIB_PATH = $(HOME)/src/BIGSI/SRA/lib64
+
+# Edit the SRA_INCLUDE_PATH variable to point to the directory on your system that contains
+# the SRA include files
+SRA_INCLUDE_PATH = $(HOME)/src/BIGSI/SRA/include
+
 # The SRA libraries are *only* needed by the bloomer program to allow
 # direct parsing of *.sra files
-SRA_LIBS = -L$(HOME)/src/BIGSI/SRA/lib64 \
+SRA_LIBS = -L$(SRA_LIB_PATH) \
 	-lncbi-ngs-c++       \
 	-lngs-c++            \
 	-lncbi-vdb-static    \
@@ -34,18 +42,18 @@ SRA_LIBS = -L$(HOME)/src/BIGSI/SRA/lib64 \
 .SUFFIXES : .o .cpp
 .cpp.o:
 	$(CC) $(FLAGS) $(INC) -c $<
-
-# A special rule to compile bloomer.cpp (which needs the SRA include files)
-bloomer.o : bloomer.cpp
-	$(CC) $(FLAGS) $(INC) -I$(HOME)/src/BIGSI/SRA/include -c $<
 	
 all: build_db bigsi++ sra_download bloomer checkbloom
-	
+
 build_db : $(BUILD_OBJS) build_db.o
 	$(CC) $(PROFILE) -o build_db $(BUILD_OBJS) build_db.o $(LIBS) $(OPENMP)
 
 bigsi++ : $(BIGSI_OBJS) bigsi++.o
 	$(CC) $(PROFILE) -o bigsi++ $(BIGSI_OBJS) bigsi++.o $(LIBS) $(OPENMP)
+
+# A special rule to compile bloomer.cpp (which needs the SRA include files)
+bloomer.o : bloomer.cpp
+	$(CC) $(FLAGS) $(INC) -I$(SRA_INCLUDE_PATH) -c $<
 
 # Note that the bloomer program requires the SRA libraries to enable the direct
 # parsing of *.sra files
