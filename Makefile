@@ -1,60 +1,62 @@
-OBJS = options.o ifind.o hash.o word.o mpi_util.o file_util.o \
+BUILD_OBJS = options.o ifind.o hash.o mpi_util.o file_util.o \
+	update.o bloom.o database.o binary_io.o
+
+BIGSI_OBJS = options.o ifind.o hash.o word.o mpi_util.o file_util.o \
 	update.o bloom.o database.o binary_io.o parse_sequence.o
 
-DOWNLOAD_OBJS = options.o ifind.o hash.o file_util.o parse_tar.o binary_io.o \
-	download.o
+BLOOMER_OBJS = options.o ifind.o hash.o word.o mpi_util.o file_util.o \
+	bloom.o binary_io.o
+	
+DOWNLOAD_OBJS = options.o ifind.o hash.o file_util.o parse_tar.o binary_io.o
+
+CHECK_OBJS = bloom.o file_util.o ifind.o binary_io.o
 
 CC = mpic++
 
+# The profile flag is only needed for development
 PROFILE = #-pg
 
-# If you are using the clang compiler (which ships with OS X), you will need to
-# to take a few steps to enable the use of OpenMP. These steps are documented
-# at https://iscinumpy.gitlab.io/post/omp-on-high-sierra/
 OPENMP = -fopenmp
+FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -std=c++0x
 
-# This is the location of the include files for the NCBI sra toolkit, ngs and ncbi-vdb
-# projects. Edit this path to point to this directory on your system.
-SRA_INCLUDE = $(HOME)/src/BIGSI/SRA/include
+INC = -I. -I$(HOME)/zlib/include
+	
+LIBS = -lm $(HOME)/zlib/lib/libz.a
 
-# This is the location of the library files for the NCBI sra toolkit, ngs and ncbi-vdb
-# projects. Edit this path to point to this directory on your system
-SRA_LIB = $(HOME)/src/BIGSI/SRA/lib64
-
-FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -std=c++11
-
-INC = -I. -I$(SRA_INCLUDE)
-
-LIBS = -lm -lz \
-	-L$(SRA_LIB) \
+# The SRA libraries are *only* needed by the bloomer program to allow
+# direct parsing of *.sra files
+SRA_LIBS = -L$(HOME)/src/BIGSI/SRA/lib64 \
 	-lncbi-ngs-c++       \
 	-lngs-c++            \
 	-lncbi-vdb-static    \
 	-ldl
-
-
-.SUFFIXES : .o .cpp .c
+	
+.SUFFIXES : .o .cpp
 .cpp.o:
 	$(CC) $(FLAGS) $(INC) -c $<
 
+# A special rule to compile bloomer.cpp (which needs the SRA include files)
+bloomer.o : bloomer.cpp
+	$(CC) $(FLAGS) $(INC) -I$(HOME)/src/BIGSI/SRA/include -c $<
+	
 all: build_db bigsi++ sra_download bloomer checkbloom
 	
-build_db : $(OBJS) build_db.o
-	$(CC) $(PROFILE) -o build_db $(OBJS) build_db.o $(LIBS) $(OPENMP)
+build_db : $(BUILD_OBJS) build_db.o
+	$(CC) $(PROFILE) -o build_db $(BUILD_OBJS) build_db.o $(LIBS) $(OPENMP)
 
-bigsi++ : $(OBJS) bigsi++.o
-	$(CC) $(PROFILE) -o bigsi++ $(OBJS) bigsi++.o $(LIBS) $(OPENMP)
+bigsi++ : $(BIGSI_OBJS) bigsi++.o
+	$(CC) $(PROFILE) -o bigsi++ $(BIGSI_OBJS) bigsi++.o $(LIBS) $(OPENMP)
 
-bloomer : $(OBJS) bloomer.o
-	$(CC) $(PROFILE) -o bloomer $(OBJS) bloomer.o $(LIBS) $(OPENMP)
+# Note that the bloomer program requires the SRA libraries to enable the direct
+# parsing of *.sra files
+bloomer : $(BLOOMER_OBJS) bloomer.o
+	$(CC) $(PROFILE) -o bloomer $(BLOOMER_OBJS) bloomer.o $(LIBS) $(SRA_LIBS) $(OPENMP)
 
-checkbloom : bloom.o checkbloom.o file_util.o ifind.o binary_io.o
-	$(CC) $(PROFILE) -o checkbloom bloom.o checkbloom.o file_util.o ifind.o binary_io.o $(LIBS) $(OPENMP)
-
+checkbloom : $(CHECK_OBJS) checkbloom.o
+	$(CC) $(PROFILE) -o checkbloom  $(CHECK_OBJS) checkbloom.o $(LIBS) $(OPENMP)
+	
 sra_download: $(DOWNLOAD_OBJS) sra_download.o
 	$(CC) $(PROFILE) -o sra_download $(DOWNLOAD_OBJS) sra_download.o $(LIBS) $(OPENMP)
-	
+
 clean:
 	-rm -f *.o
-
-
