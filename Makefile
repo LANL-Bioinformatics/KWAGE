@@ -7,17 +7,26 @@ DOWNLOAD_OBJS = options.o ifind.o hash.o file_util.o parse_tar.o binary_io.o \
 CC = mpic++
 
 PROFILE = #-pg
-OPENMP = -Xpreprocessor -fopenmp
+
+# If you are using the clang compiler (which ships with OS X), you will need to
+# to take a few steps to enable the use of OpenMP. These steps are documented
+# at https://iscinumpy.gitlab.io/post/omp-on-high-sierra/
+OPENMP = -fopenmp
+
+# This is the location of the include files for the NCBI sra toolkit, ngs and ncbi-vdb
+# projects. Edit this path to point to this directory on your system.
+SRA_INCLUDE = $(HOME)/src/BIGSI/SRA/include
+
+# This is the location of the library files for the NCBI sra toolkit, ngs and ncbi-vdb
+# projects. Edit this path to point to this directory on your system
+SRA_LIB = $(HOME)/src/BIGSI/SRA/lib64
+
 FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -std=c++11
 
-INC = -I. -I$(HOME)/zlib/include \
-	-I$(HOME)/src/BIGSI/SRA/include \
-	-I$(HOME)/src/BIGSI/SRA/ncbi-vdb-master/interfaces \
-	-I$(HOME)/llvm-project/build-openmp/runtime/src
+INC = -I. -I$(SRA_INCLUDE)
 
-LIBS = -lm $(HOME)/zlib/lib/libz.a \
-	-L$(HOME)/llvm-project/build-openmp/runtime/src -lomp \
-	-L$(HOME)/src/BIGSI/SRA/lib64 \
+LIBS = -lm -lz \
+	-L$(SRA_LIB) \
 	-lncbi-ngs-c++       \
 	-lngs-c++            \
 	-lncbi-vdb-static    \
