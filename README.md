@@ -6,10 +6,10 @@ A C++ reimplementation of the ultra-fast, [Bloom filter](https://en.wikipedia.or
 4. Bloom filter construction directly from [Sequence Read Archive](https://www.ncbi.nlm.nih.gov/sra) (SRA) files
 
 The BIGSI++ pipeline has four primary components:
-1. Streaming downloads of SRA files
-2. Streaming construction of Bloom filters from the downloaded SRA files
-3. Database construction from the Bloom filters
-4. Searching the resulting database with a nucleic acid query
+1. Streaming downloads of SRA files: `sra_download`
+2. Streaming construction of Bloom filters from the downloaded SRA files: `bloomer`
+3. Database construction from the Bloom filters: `build_db`
+4. Searching the resulting database with a nucleic acid query: `bigsi++`
 
 ## Building and installing the code
 The BIGSI++ code is written in C++ and requires the MPI (message passing interface; I recommend [OpenMPI](https://www.open-mpi.org/)). A compiler that supports OpenMP is also suggested, but not required.
