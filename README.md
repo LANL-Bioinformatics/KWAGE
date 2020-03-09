@@ -20,8 +20,14 @@ In addition, the SRA toolkit and associated APIs are required to download and re
 2. [ngs](https://github.com/ncbi/ngs)
 3. [sra-tools](https://github.com/ncbi/sra-tools)
 
+Please note that these NCBI libraries are only needed if you will be either downloading SRA files and/or creating Bloom filters from SRA files. If you only need to either build a database from existing Bloom filters or search an existing database, then these NCBI libraries are *not* needed.
+
 ### Edit the BIGSI++ Makefile
-After these three separate NCBI software packages have been downloaded an compiled, you will need to edit the BIGSI++ Makefile to specify the locations of both the include and library directories for the ncbi-vdb and ngs packages.
+After the three separate NCBI software packages have been downloaded and compiled, you will need to edit the BIGSI++ Makefile to specify the locations of both the include and library directories for the ncbi-vdb and ngs packages.
+
+Edit the `SRA_LIB_PATH` variable to point to the directory on your system that contains the SRA library files.
+
+Edit the `SRA_INCLUDE_PATH` variable to point to the directory on your system that contains the SRA include files.
 
 ## SRA download
 
