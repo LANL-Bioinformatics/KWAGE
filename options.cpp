@@ -348,6 +348,8 @@ void DownloadOptions::load(int argc, char* argv[])
 	kmer_len = DEFAULT_KMER_LENGTH;
 	min_kmer_count = DEFAULT_SRA_MIN_KMER_COUNT;
 	max_num_download_attempts = DEFAULT_DOWNLOAD_ATTEMPT;
+	min_log_2_filter_len = DEFAULT_MIN_LOG_2_FILTER_LEN;
+	max_log_2_filter_len = DEFAULT_MAX_LOG_2_FILTER_LEN;
 	hash_func = MURMUR_HASH;
 	sleep_interval = 0;
 	max_backlog = DEFAULT_MAX_BACKLOG;
@@ -367,6 +369,8 @@ void DownloadOptions::load(int argc, char* argv[])
 		{"hash", true, &config_opt, 7},
 		{"sleep", true, &config_opt, 9},
 		{"max-backlog", true, &config_opt, 10},
+		{"len.min", true, &config_opt, 11},
+		{"len.max", true, &config_opt, 12},
 		{0,0,0,0} // Terminate options list
 	};
 	
@@ -433,6 +437,18 @@ void DownloadOptions::load(int argc, char* argv[])
 					break;
 				}
 				
+				if(config_opt == 11){ // --len.min
+						
+					min_log_2_filter_len = str_to_uint32_t(optarg);
+					break;
+				}
+				
+				if(config_opt == 12){ // --len.max
+						
+					max_log_2_filter_len = str_to_uint32_t(optarg);
+					break;
+				}
+				
 				cerr << "Unknown flag!" << endl;
 				break;
 			case 'i':
@@ -487,6 +503,11 @@ void DownloadOptions::load(int argc, char* argv[])
 		
 		cerr << endl;
 		
+		cerr << "\t[--len.min <log2 Bloom filter len>] (default is " 
+			<< DEFAULT_MIN_LOG_2_FILTER_LEN << ")" << endl;
+		cerr << "\t[--len.max <log2 Bloom filter len>] (default is " 
+			<< DEFAULT_MAX_LOG_2_FILTER_LEN << ")" << endl;
+			
 		cerr << "\t[--list (list, but do not download, SRA data)]" << endl;
 		cerr << "\t[--sleep <sec> (time to sleep between downloads)]" << endl;
 		cerr << "\t[--max-backlog <number of downloads> (Pause SRA downloading when exceeded)]" 
@@ -573,6 +594,26 @@ void DownloadOptions::load(int argc, char* argv[])
 		
 		return;
 	}
+	
+	if(min_log_2_filter_len > max_log_2_filter_len){
+		
+		quit = true;
+		
+		cerr << "Please specify a min log2 Bloom filter length less than the maximum filter length"
+			<< endl;
+		
+		return;
+	}
+	
+	if(max_log_2_filter_len >= 64){
+		
+		quit = true;
+		
+		cerr << "Please specify a maximum log2 Bloom filter length < 64 (to avoid 64-bit overflow)"
+			<< endl;
+		
+		return;
+	}
 }
 
 void BloomerOptions::load(int argc, char* argv[])
@@ -584,6 +625,8 @@ void BloomerOptions::load(int argc, char* argv[])
 	kmer_len = DEFAULT_KMER_LENGTH;
 	min_kmer_count = DEFAULT_SRA_MIN_KMER_COUNT;
 	num_file_slice = DEFAULT_NUM_SRA_FILE_SLICE;
+	min_log_2_filter_len = DEFAULT_MIN_LOG_2_FILTER_LEN;
+	max_log_2_filter_len = DEFAULT_MAX_LOG_2_FILTER_LEN;
 	hash_func = MURMUR_HASH;
 	save_sra = false; // Should we remove the SRA data after filter construction?
 	verbose = false;
@@ -599,6 +642,8 @@ void BloomerOptions::load(int argc, char* argv[])
 		{"save-sra", false, &config_opt, 3},
 		{"slice", true, &config_opt, 4},
 		{"no-meta", false, &config_opt, 5},
+		{"len.min", true, &config_opt, 6},
+		{"len.max", true, &config_opt, 7},
 		{0,0,0,0} // Terminate options list
 	};
 	
@@ -642,6 +687,18 @@ void BloomerOptions::load(int argc, char* argv[])
 					break;
 				}
 				
+				if(config_opt == 6){ // --len.min
+						
+					min_log_2_filter_len = str_to_uint32_t(optarg);
+					break;
+				}
+				
+				if(config_opt == 7){ // --len.max
+						
+					max_log_2_filter_len = str_to_uint32_t(optarg);
+					break;
+				}
+				
 				cerr << "Unknown flag!" << endl;
 				break;
 			case 'i':
@@ -673,7 +730,7 @@ void BloomerOptions::load(int argc, char* argv[])
 
 		quit = true;
 
-		cerr << "Usage for Bloomer (v. " << BIGSI_VERSION << "):" << endl;
+		cerr << "Usage for Bloomer (v. " << BLOOMER_VERSION << "):" << endl;
 		cerr << "\t-i <input SRA directory>" << endl;
 		cerr << "\t-o <Bloom filter output file>" << endl;
 		cerr << "\t[-k <kmer length>] (default is " << DEFAULT_KMER_LENGTH << ")" << endl;
@@ -683,7 +740,7 @@ void BloomerOptions::load(int argc, char* argv[])
 			<< DEFAULT_SRA_MIN_KMER_COUNT << ")" << endl;
 		cerr << "\t[--hash <hash function name>] (default is " 
 			<< hash_name(hash_func) << ")" << endl;
-		
+			
 		cerr << "\t\tAllowed hash functions: ";
 		
 		for(int i = 0;i < UNKNOWN_HASH;++i){
@@ -701,6 +758,11 @@ void BloomerOptions::load(int argc, char* argv[])
 		cerr << "\t[--no-meta (do not attempt to read the SRA meta-data file)]" << endl;
 		cerr << "\t[--slice <num slice>] (number of SRA file slices to read in parallel; default is "
 			<< DEFAULT_NUM_SRA_FILE_SLICE << ")" << endl;
+		cerr << "\t[--len.min <log2 Bloom filter len>] (default is " 
+			<< DEFAULT_MIN_LOG_2_FILTER_LEN << ")" << endl;
+		cerr << "\t[--len.max <log2 Bloom filter len>] (default is " 
+			<< DEFAULT_MAX_LOG_2_FILTER_LEN << ")" << endl;
+			
 		cerr << "\t[-v (turn on verbose output)]" << endl;
 		
 		return;
@@ -766,6 +828,26 @@ void BloomerOptions::load(int argc, char* argv[])
 		}
 		
 		cerr << ")";
+		
+		return;
+	}
+	
+	if(min_log_2_filter_len > max_log_2_filter_len){
+		
+		quit = true;
+		
+		cerr << "Please specify a min log2 Bloom filter length less than the maximum filter length"
+			<< endl;
+		
+		return;
+	}
+	
+	if(max_log_2_filter_len >= 64){
+		
+		quit = true;
+		
+		cerr << "Please specify a maximum log2 Bloom filter length < 64 (to avoid 64-bit overflow)"
+			<< endl;
 		
 		return;
 	}

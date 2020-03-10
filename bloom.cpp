@@ -7,7 +7,8 @@
 using namespace std;
 
 BloomParam optimal_bloom_param(const uint32_t &m_kmer_len, const size_t &m_num_kmer, const float &m_p,
-	const HashFunction &m_func)
+	const HashFunction &m_func, const uint32_t &m_min_log_2_filter_len, 
+	const uint32_t &m_max_log_2_filter_len)
 {
 	// There are some SRA datasets that contain reads that are *less* than the size of a kmer.
 	// These datasets will not yeild any valid kmers
@@ -31,8 +32,8 @@ BloomParam optimal_bloom_param(const uint32_t &m_kmer_len, const size_t &m_num_k
 	//
 	// For Bloom filters of the same length, find the optimal number of hash
 	// functions (within the specified search limits).
-	for(ret.log_2_filter_len = MIN_LOG_2_BLOOM_FILTER_LEN;
-			ret.log_2_filter_len <= MAX_LOG_2_BLOOM_FILTER_LEN;++ret.log_2_filter_len){
+	for(ret.log_2_filter_len = m_min_log_2_filter_len;
+			ret.log_2_filter_len <= m_max_log_2_filter_len;++ret.log_2_filter_len){
 		
 		float best_p = 10.0f; // Any value > 1.0 to initialize
 

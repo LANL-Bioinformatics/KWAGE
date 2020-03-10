@@ -320,7 +320,9 @@ int main(int argc, char *argv[])
 			param = optimal_bloom_param(opt.kmer_len,
 				num_valid_unique_kmer, 
 				opt.false_positive_probability,
-				opt.hash_func);
+				opt.hash_func, 
+				opt.min_log_2_filter_len, 
+				opt.max_log_2_filter_len);
 		}
 		catch(...){
 
@@ -367,7 +369,9 @@ int main(int argc, char *argv[])
 			return EXIT_SUCCESS;
 		}
 
-		const uint32_t filter_len = param.filter_len();
+		// The filter_len (i.e. number of bits in a Bloom filter) can be very large.
+		// Use a 64-bit unsigned integer for now ...
+		const size_t filter_len = param.filter_len();
 		
 		if( opt.verbose && (mpi_rank == 0) ){
 			

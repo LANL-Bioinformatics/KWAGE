@@ -398,6 +398,8 @@ int main(int argc, char* argv[])
 			<< "\\$HOME/src/BIGSI/bigsi++1/bloomer -v -i " << run_dir
 			<< " -o " << bloom_file_name
 			<< " -k " << opt.kmer_len << " -p " << opt.false_positive_probability 
+			<< " --len.min " << opt.min_log_2_filter_len
+			<< " --len.max " << opt.max_log_2_filter_len
 			<< " --slice " << (is_aligned_reads ? 11 : 5) << "\\n"
 			<< "STATUS=\\$?\\n"
 			<< "if [ \\$STATUS == 0 ] \\n"

@@ -1,15 +1,9 @@
 #ifndef __BIGSI
 #define __BIGSI
 
-// Version 0.1, Oct 25, 2019
-//	- Initial reference version to enable comparison to 
-//	  BIGSI python implementation
-// Version 0.2, Nov 13, 2019
-//	- Initial design of a production version of bigsi++
-//	- Formal definition of the Bloom filter database file format
-
 #define	BIGSI_VERSION		"0.2"
 #define	DOWNLOAD_VERSION	"0.2"
+#define	BLOOMER_VERSION		"0.3"
 #define	BUILD_DB_VERSION	"0.2"
 #define	CHECK_BLOOM_VERSION	"0.1"
 

@@ -90,6 +90,8 @@ struct DownloadOptions
 		VARIABLE(float, false_positive_probability) \
 		VARIABLE(unsigned int, kmer_len) \
 		VARIABLE(unsigned int, min_kmer_count) \
+		VARIABLE(unsigned int, min_log_2_filter_len) \
+		VARIABLE(unsigned int, max_log_2_filter_len) \
 		VARIABLE(HashFunction, hash_func) \
 		VARIABLE(unsigned int, max_num_download_attempts) \
 		VARIABLE(unsigned int, sleep_interval) \
@@ -136,6 +138,8 @@ struct BloomerOptions
 		VARIABLE(unsigned int, min_kmer_count) \
 		VARIABLE(unsigned int, kmer_len) \
 		VARIABLE(unsigned int, num_file_slice) \
+		VARIABLE(unsigned int, min_log_2_filter_len) \
+		VARIABLE(unsigned int, max_log_2_filter_len) \
 		VARIABLE(HashFunction, hash_func) \
 		VARIABLE(bool, save_sra) \
 		VARIABLE(bool, read_meta_data) \
@@ -184,5 +188,7 @@ template<> unsigned char* mpi_unpack(unsigned char* m_ptr, BloomerOptions &m_obj
 #define		DEFAULT_HASH_FUNCTION				MURMUR_HASH
 #define		DEFAULT_MAX_BACKLOG				25
 #define		DEFAULT_DOWNLOAD_THREADS			1
+#define		DEFAULT_MIN_LOG_2_FILTER_LEN			20
+#define		DEFAULT_MAX_LOG_2_FILTER_LEN			33
 
 #endif // __OPTIONS

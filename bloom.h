@@ -750,6 +750,7 @@ template<> unsigned char* mpi_pack(unsigned char* m_ptr, const SubFilter &m_obj)
 template<> unsigned char* mpi_unpack(unsigned char* m_ptr, SubFilter &m_obj);
 
 BloomParam optimal_bloom_param(const uint32_t &m_kmer_len, const size_t &m_num_kmer, 
-	const float &m_p, const HashFunction &m_func);
+	const float &m_p, const HashFunction &m_func, const uint32_t &m_min_log_2_filter_len, 
+	const uint32_t &m_max_log_2_filter_len);
 
 #endif // __BLOOM_FILTER
