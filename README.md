@@ -18,7 +18,7 @@ Currently, downloading the SRA files is orchestrated by the `sra_download` progr
 
 A cloud-compatible version of `sra_download` (coming soon!) will replace the Torque/PBS dependency with an AWS dependency to spawn additional AWS instances than compute Bloom filters from the downloaded files.
 
-### Download the SRA toolkit and associated APIs
+### Step 1: Download the SRA toolkit and associated APIs
 In addition, the SRA toolkit and associated APIs are required if you would like to be able to download and/or construct Bloom filters from SRA files. In particular, you will need to download and build the following three GitHub projects from NCBI:
 1. [ncbi-vdb](https://github.com/ncbi/ncbi-vdb)
 2. [ngs](https://github.com/ncbi/ngs)
@@ -26,12 +26,16 @@ In addition, the SRA toolkit and associated APIs are required if you would like 
 
 Please note that these NCBI libraries are only needed if you will need to either download SRA files and/or create Bloom filters from SRA files. If you only need to either build a database from existing Bloom filters or search an existing database, then these NCBI libraries are *not* needed.
 
-### Edit the BIGSI++ Makefile
+### Step 2: Edit the BIGSI++ Makefile
 After the three separate NCBI software packages have been downloaded and compiled, you will need to edit the BIGSI++ Makefile to specify the locations of both the include and library directories for the ncbi-vdb and ngs packages.
 
 Edit the `SRA_LIB_PATH` variable to point to the directory on your system that contains the SRA library files.
 
 Edit the `SRA_INCLUDE_PATH` variable to point to the directory on your system that contains the SRA include files.
+
+### Step 3: Run `make -j`
+
+Running `make` in the BIGS++ directory will build all pipeline components. There is no separate installation step required. If you encounter any problems, please email `jgans@lanl.gov` for assistance.
 
 ## SRA download
 
@@ -66,8 +70,18 @@ Usage for SRA Download:
 - The argument to the `--max-backlog` flag sets the maximum number of SRA files that can be downloaded before being processed with the `bloomer` program to create Bloom filters (and to remove the SRA file). This is intended to prevent the exhaustion of local `--download` directory storage in the event that (a) the job scheduler has failed and/or (b) the number of compute nodes running the `bloomer` program can not keep up with the rate at which SRA files are being downloaded.
 - The argument to the `-t` command sets the integer number of threads that will be used to download SRA files in parallel (i.e. spawning independent instances of the `prefetch` program to download separate SRA run accessions). When downloading to a private (i.e. non-cloud) network, using upto 4 threads offers a bandwidth improvement.
 
+Please note that downloading the *entire* SRA database is an enormous undertaking. There are several petabytes of data composed of millions of SRA run accessions in the SRA database, which is currently stored in the Amazona and Google clouds. The prefered usage is run this tool in the cloud to avoid additional data egress charges to NCBI (that are imposed by cloud providers when data is copied out of the cloud to a private network).
 
 ## Bloom filter construction
+
+Bloom filter construction is handled by the `bloomer` program, which:
+1. Reads sequence data directly from a local SRA file (downloaded using the NCBI SRA `prefetch` command) and an optional file of metadata (that is created by the `sra_download` program when it parses the XML inventory file provided by the SRA).
+2. Extracts high frequency k-mers.
+3. Selects the optimal Bloom filter parameters (i.e. the filter length in bits and the number of hash functions to apply to each k-mer).
+4. Builds the Bloom filter in RAM.
+5. Writes the Bloom filter and associated SRA metadata to storage (using a single file to store each Bloom filter).
+
+Complex SRA records (i.e. metagenomic and large eukaryotic sequencing projects) can generate large numbers of k-mers, which must be counted so that we can discard the rare (i.e. low abundance) k-mers that are likely a result of sequencing errors. To enable stoarge of large k-mer sets in RAM, the `bloomer` program uses MPI to enable multiple computers to work together to distribute the memory requirements for storing the k-mers. 
 
 ## Database construction
 
