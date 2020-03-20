@@ -107,17 +107,6 @@ string FilterInfo::json_string(const string &m_prefix) const
 		wrote_value = true;
 	}
 
-	if( !experiment_title.empty() ){
-
-		if(wrote_value){
-			ssout << ",\n";
-		}
-
-		ssout << m_prefix << "\"experiment title\": \"" << experiment_title << '"';
-
-		wrote_value = true;
-	}
-
 	if( !experiment_design_description.empty() ){
 
 		if(wrote_value){
