@@ -63,6 +63,10 @@ Usage for SRA Download:
 	[--sleep <sec> (time to sleep between downloads)]
 	[--max-backlog <number of downloads> (Pause SRA downloading when exceeded)] (default is 25; 0 is no limit)
 	[-t <number of download threads>] (default is 1)
+	[--date.from <YYYY-MM-DD>] (only download SRA records received after this date)
+	[--date.to <YYYY-MM-DD>] (only download SRA records received before this date)
+	[--strategy <strategy key word>] (only download SRA records that match one of the specified experimental strategies)
+	[--source <source key word>] (only download SRA records that match one of the specified exterimental sources)
 ```
 
 - The argument to the `-i` flag is the compressed tar file of XML metadata dowloaded from the NCBI [FTP](tp://ftp.ncbi.nlm.nih.gov/sra/reports/Metadata) site. **Do not uncompress or untar this file!** Since the uncompressed/untarred files are large and cumbersome to manage, the `sra_download` program directly reads the SRA metadata and run accessions by uncompressing on the fly (and parses the tar file format to track the source files).
@@ -78,7 +82,25 @@ Usage for SRA Download:
 - Specifing the `--list` flag will cause `sra_download` to print the SRA run accessions and metadata found in the XML input file and then exit **without** downloading any SRA files.
 - The argument to the optional `--sleep` flag is the number of seconds to sleep after downloading an SRA file using the `prefetch` command. This is intended for situations where one might need to reduce the average bandwidth to NCBI SRA database.
 - The argument to the `--max-backlog` flag sets the maximum number of SRA files that can be downloaded before being processed with the `bloomer` program to create Bloom filters (and to remove the SRA file). This is intended to prevent the exhaustion of local `--download` directory storage in the event that (a) the job scheduler has failed and/or (b) the number of compute nodes running the `bloomer` program can not keep up with the rate at which SRA files are being downloaded.
-- The argument to the `-t` command sets the integer number of threads that will be used to download SRA files in parallel (i.e. spawning independent instances of the `prefetch` program to download separate SRA run accessions). When downloading to a private (i.e. non-cloud) network, using upto 4 threads offers a bandwidth improvement.
+- The argument to the `-t` flag sets the integer number of threads that will be used to download SRA files in parallel (i.e. spawning independent instances of the `prefetch` program to download separate SRA run accessions). When downloading to a private (i.e. non-cloud) network, using upto 4 threads offers a bandwidth improvement.
+- The argument to the `--date.from` flag restricts the download to SRA runs that were *received after* this date
+- The argument to the `--date.to` flag restricts the download to SRA runs that were *received before* this date
+- The argument to the `--strategy` flag restricts the download to SRA runs that have a matching experimental strategy. 
+	- This command can be repeated multiple times.
+	- The string matching is case sensitive.
+	- A *partial* list of experimental strategies include:
+		- RNA-Seq
+		- WGS
+		- AMPLICON
+		- Bisulfite-Seq
+- The argument to the `--source` flag restricts the download to SRA runs that have a matching experimental source. 
+	- This command can be repeated multiple times.
+	- The string matching is case sensitive.
+	- A *partial* list of experimental sources include:
+		- TRANSCRIPTOMIC
+		- GENOMIC
+		- METAGENOMIC
+		- METATRANSCRIPTOMIC
 
 Please note that downloading the *entire* SRA database is an enormous undertaking. There are several petabytes of data composed of millions of SRA run accessions in the SRA database, which is currently stored in the Amazona and Google clouds. The prefered usage is run this tool in the cloud to avoid additional data egress charges to NCBI (that are imposed by cloud providers when data is copied out of the cloud to a private network).
 
