@@ -1,17 +1,18 @@
 BUILD_OBJS = options.o ifind.o hash.o mpi_util.o file_util.o \
-	update.o bloom.o database.o binary_io.o
+	update.o bloom.o database.o binary_io.o date.o
 
 BIGSI_OBJS = options.o ifind.o hash.o word.o mpi_util.o file_util.o \
-	update.o bloom.o database.o binary_io.o parse_sequence.o
+	update.o bloom.o database.o binary_io.o parse_sequence.o date.o
 
 BLOOMER_OBJS = options.o ifind.o hash.o word.o mpi_util.o file_util.o \
-	bloom.o binary_io.o
+	bloom.o binary_io.o date.o
 	
-DOWNLOAD_OBJS = options.o ifind.o hash.o file_util.o parse_tar.o binary_io.o
+DOWNLOAD_OBJS = options.o ifind.o hash.o file_util.o parse_tar.o binary_io.o \
+	date.o split.o
 
-CHECK_OBJS = bloom.o file_util.o ifind.o binary_io.o
+CHECK_OBJS = bloom.o file_util.o ifind.o binary_io.o date.o
 
-DUMP_OBJS = binary_io.o
+DUMP_OBJS = binary_io.o date.o
 
 CC = mpic++
 
