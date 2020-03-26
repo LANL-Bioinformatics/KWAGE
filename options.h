@@ -2,9 +2,11 @@
 #define	__OPTIONS
 
 #include <unordered_map>
+#include <unordered_set>
 #include <deque>
 #include "mpi_util.h"
 #include "hash.h"
+#include "date.h"
 
 // We need to protect any commas that appear in template variables
 // if we are going to combine them with X Macros
@@ -79,7 +81,6 @@ struct SearchOptions
 
 struct DownloadOptions
 {
-
 	// Use X Macros (https://en.wikipedia.org/wiki/X_Macro) to 
 	// ensure that structure variable are correctly serialized
 	#define DOWNLOAD_OPTION_MEMBERS \
@@ -87,6 +88,8 @@ struct DownloadOptions
 		VARIABLE(std::string, download_dir) \
 		VARIABLE(std::string, bloom_dir) \
 		VARIABLE(std::string, log_file) \
+		VARIABLE(std::unordered_set<std::string>, required_strategy) \
+		VARIABLE(std::unordered_set<std::string>, required_source) \
 		VARIABLE(float, false_positive_probability) \
 		VARIABLE(unsigned int, kmer_len) \
 		VARIABLE(unsigned int, min_kmer_count) \
@@ -97,6 +100,8 @@ struct DownloadOptions
 		VARIABLE(unsigned int, sleep_interval) \
 		VARIABLE(unsigned int, max_backlog) \
 		VARIABLE(unsigned int, num_download_threads) \
+		VARIABLE(Date, begin_date) \
+		VARIABLE(Date, end_date) \
 		VARIABLE(bool, list_only) \
 		VARIABLE(bool, quit)
 
@@ -114,17 +119,7 @@ struct DownloadOptions
 	};
 	
 	void load(int argc, char* argv[]);
-	
-	template<class T> friend size_t mpi_size(const T &m_obj);
-	template<class T> friend unsigned char* mpi_unpack(unsigned char* m_ptr, 
-		T &m_obj);
-	template<class T> friend unsigned char* mpi_pack(unsigned char* m_ptr,
-		const T &m_obj);
 };
-
-template<> size_t mpi_size(const DownloadOptions &m_obj);
-template<> unsigned char* mpi_pack(unsigned char* m_ptr, const DownloadOptions &m_obj);
-template<> unsigned char* mpi_unpack(unsigned char* m_ptr, DownloadOptions &m_obj);
 
 struct BloomerOptions
 {

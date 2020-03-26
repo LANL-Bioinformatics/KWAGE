@@ -107,37 +107,37 @@ unsigned char* mpi_pack(unsigned char* m_ptr, const BuildOptions &m_obj)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-// Specialization for DownloadOptions
+// Specialization for Date
 /////////////////////////////////////////////////////////////////////////////////////////
 
 template<> 
-size_t mpi_size(const DownloadOptions &m_obj)
+size_t mpi_size(const Date &m_obj)
 {
 	size_t ret = 0;
 
 	#define VARIABLE(A, B) ret += mpi_size(m_obj.B);
-		DOWNLOAD_OPTION_MEMBERS
+		DATE_MEMBERS
 	#undef VARIABLE
 
 	return ret;	
 };
 
 template<> 
-unsigned char* mpi_unpack(unsigned char* m_ptr, DownloadOptions &m_obj)
+unsigned char* mpi_unpack(unsigned char* m_ptr, Date &m_obj)
 {
 	#define VARIABLE(A, B) m_ptr = mpi_unpack(m_ptr, m_obj.B);
-		DOWNLOAD_OPTION_MEMBERS
+		DATE_MEMBERS
         #undef VARIABLE
 	
 	return m_ptr;
 }
 
 template<> 
-unsigned char* mpi_pack(unsigned char* m_ptr, const DownloadOptions &m_obj)
+unsigned char* mpi_pack(unsigned char* m_ptr, const Date &m_obj)
 {
 
 	#define VARIABLE(A, B) m_ptr = mpi_pack(m_ptr, m_obj.B);
-		DOWNLOAD_OPTION_MEMBERS
+		DATE_MEMBERS
 	#undef VARIABLE
 
 	return m_ptr;

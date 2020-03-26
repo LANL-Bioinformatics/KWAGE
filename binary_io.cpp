@@ -2,6 +2,7 @@
 #include "options.h"
 #include "bloom.h"
 #include "bigsi++.h"
+#include "date.h"
 #include <string.h>
 
 using namespace std;
@@ -213,5 +214,34 @@ void binary_read(istream &m_in, DBFileHeader &m_obj)
 	
 	if(!m_in){
 		throw __FILE__ ":binary_read<DBFileHeader>: Unable to read DBFileHeader";
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Specialization for Date
+/////////////////////////////////////////////////////////////////////////////////////////
+
+template<> 
+void binary_write(ostream &m_out, const Date &m_obj)
+{
+
+	#define VARIABLE(A, B) binary_write(m_out, m_obj.B);
+		DATE_MEMBERS
+	#undef VARIABLE
+	
+	if(!m_out){
+		throw __FILE__ ":binary_write<Date>: Unable to write Date";
+	}
+}
+
+template<> 
+void binary_read(istream &m_in, Date &m_obj)
+{
+	#define VARIABLE(A, B) binary_read(m_in, m_obj.B);
+		DATE_MEMBERS
+	#undef VARIABLE
+	
+	if(!m_in){
+		throw __FILE__ ":binary_read<Date>: Unable to read Date";
 	}
 }

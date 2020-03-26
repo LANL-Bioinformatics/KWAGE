@@ -354,7 +354,12 @@ void DownloadOptions::load(int argc, char* argv[])
 	sleep_interval = 0;
 	max_backlog = DEFAULT_MAX_BACKLOG;
 	num_download_threads = DEFAULT_DOWNLOAD_THREADS;
-	
+
+	// By default, there is no date restriction. Make the begin
+	// and end date far in the past and far in the future, respecitively
+	begin_date = Date("0001-01-01"); // Jan 1, AD 1
+	end_date = Date("9999-01-01"); // Jan 1, AD 9999
+
 	const char* options = "i:k:p:t:h?";
 	int config_opt = 0;
 	int long_index = 0;
@@ -371,6 +376,10 @@ void DownloadOptions::load(int argc, char* argv[])
 		{"max-backlog", true, &config_opt, 10},
 		{"len.min", true, &config_opt, 11},
 		{"len.max", true, &config_opt, 12},
+		{"date.from", true, &config_opt, 13},
+		{"date.to", true, &config_opt, 14},
+		{"strategy", true, &config_opt, 15},
+		{"source", true, &config_opt, 16},
 		{0,0,0,0} // Terminate options list
 	};
 	
@@ -378,6 +387,9 @@ void DownloadOptions::load(int argc, char* argv[])
 	opterr = 0;
 
 	bool print_usage = (argc == 1);
+
+	string date_from;
+	string date_to;
 
 	while( (opt_code = getopt_long( argc, argv, options, long_opts, &long_index) ) != EOF ){
 
@@ -449,6 +461,30 @@ void DownloadOptions::load(int argc, char* argv[])
 					break;
 				}
 				
+				if(config_opt == 13){ // --date.from
+						
+					date_from = optarg;
+					break;
+				}
+
+				if(config_opt == 14){ // --date.to
+						
+					date_to = optarg;
+					break;
+				}
+
+				if(config_opt == 15){ // --strategy
+						
+					required_strategy.insert(optarg);
+					break;
+				}
+
+				if(config_opt == 16){ // --source
+						
+					required_source.insert(optarg);
+					break;
+				}
+
 				cerr << "Unknown flag!" << endl;
 				break;
 			case 'i':
@@ -514,7 +550,12 @@ void DownloadOptions::load(int argc, char* argv[])
 			" (default is " << DEFAULT_MAX_BACKLOG << "; 0 is no limit)" << endl;
 		cerr << "\t[-t <number of download threads>] (default is " 
 			<< DEFAULT_DOWNLOAD_THREADS<< ")" << endl;
-		
+		cerr << "\t[--date.from <YYYY-MM-DD>] (only download SRA records published after this date)" << endl;
+		cerr << "\t[--date.to <YYYY-MM-DD>] (only download SRA records published before this date)" << endl;
+		cerr << "\t[--strategy <strategy key word>] (only download SRA records that match one of the specified experimental strategies)" << endl;
+		cerr << "\t\tExamples include: RNA-Seq, WGS, AMPLICON, Bisulfite-Seq, ... (case sensitive!)" << endl;
+		cerr << "\t[--source <source key word>] (only download SRA records that match one of the specified exterimental sources)" << endl;
+		cerr << "\t\tExamples include: TRANSCRIPTOMIC, GENOMIC, METAGENOMIC, METATRANSCRIPTOMIC, ... (case sensitive!)" << endl;
 		return;
 	}
 
@@ -613,6 +654,34 @@ void DownloadOptions::load(int argc, char* argv[])
 			<< endl;
 		
 		return;
+	}
+
+	if( !date_from.empty() ){
+		try{
+			begin_date = Date(date_from);
+		}
+		catch(...){
+			
+			quit = true;
+
+			cerr << "Please specify a valid data (YYYY-MM-DD) for --date.from" << endl;
+
+			return;
+		}
+	}
+
+	if( !date_to.empty() ){
+		try{
+			end_date = Date(date_to);
+		}
+		catch(...){
+			
+			quit = true;
+
+			cerr << "Please specify a valid data (YYYY-MM-DD) for --date.to" << endl;
+
+			return;
+		}
 	}
 }
 

@@ -22,6 +22,8 @@
 #include "file_util.h"
 #include "keys.h"
 #include "bigsi++.h" // For DOWNLOAD_VERSION
+#include "split.h"
+#include "date.h"
 
 using namespace std;
 
@@ -47,7 +49,8 @@ string extract_prefix(const string &m_subject);
 SRAFileType sra_file_type(const string &m_filename);
 string parse_accession(const string &m_buffer);
 string parse_xml(const string &m_key, const string &m_buffer);
-void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_file);
+void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_file,
+	const DownloadOptions &m_opt);
 unordered_set<string> parse_sra_accessions(const string &m_logfile);
 bool has_aligned_reads(const string &m_dir);
 
@@ -55,438 +58,453 @@ extern const char* allowed_filter_extention;
 
 int main(int argc, char* argv[])
 {
-	DownloadOptions opt(argc, argv);
+	try{
 
-	if(opt.quit){
-		return EXIT_SUCCESS;
-	}
+		DownloadOptions opt(argc, argv);
 
-	time_t profile = time(NULL);
+		if(opt.quit){
+			return EXIT_SUCCESS;
+		}
 
-	// Before we start logging, we need to parse the log file (if it exists), to
-	// extract any SRA accession that have already been downloaded
-	const unordered_set<string> existing_sra_accessions = parse_sra_accessions(opt.log_file);
-	
-	cerr << "Found " << existing_sra_accessions.size() 
-		<< " previously downloaded SRA records to skip" << endl;
+		time_t profile = time(NULL);
 
-	ofstream log(opt.log_file.c_str(), ios::app);
+		// Before we start logging, we need to parse the log file (if it exists), to
+		// extract any SRA accession that have already been downloaded
+		const unordered_set<string> existing_sra_accessions = parse_sra_accessions(opt.log_file);
+		
+		cerr << "Found " << existing_sra_accessions.size() 
+			<< " previously downloaded SRA records to skip" << endl;
 
-	log << "Started logging: " << ctime(&profile);
+		ofstream log(opt.log_file.c_str(), ios::app);
 
-	// Save the command line arguments in the log file
-	log << "Command-line (v. " << DOWNLOAD_VERSION << "):";
-	
-	for(int i = 0;i < argc;++i){
-		log << ' ' << argv[i];
-	}
-	
-	log << endl;
-	
-	// If we will be downloading, make sure that the scratch and download directories exist
-	if(!opt.list_only){
+		log << "Started logging: " << ctime(&profile);
 
-		if( !make_dir(opt.download_dir) ){
-			
-			cerr << "Unable to create download directory: " << opt.download_dir << endl;
-			throw __FILE__ ":main: Unable to create download directory";
+		// Save the command line arguments in the log file
+		log << "Command-line (v. " << DOWNLOAD_VERSION << "):";
+		
+		for(int i = 0;i < argc;++i){
+			log << ' ' << argv[i];
 		}
 		
-		if( !make_dir(opt.bloom_dir) ){
-			
-			cerr << "Unable to create Bloom filter directory: " << opt.bloom_dir << endl;
-			throw __FILE__ ":main: Unable to create Bloom filter directory";
-		}
-	}
-
-	// Step 1: Parse the SRA metadata to extract all of the SRA runs and selected metadata
-	MAP<string, FilterInfo> db;
-
-	cerr << "Reading NCBI metadata from " << opt.metadata_file << endl;
-	log << "Reading NCBI metadata from " << opt.metadata_file << endl;
-
-	time_t profile_parse_xml = time(NULL);
-
-	parse_sra_metadata(db, opt.metadata_file);
-
-	profile_parse_xml = time(NULL) - profile_parse_xml;
+		log << endl;
 		
-	const size_t num_sra_run = db.size();
+		// If we will be downloading, make sure that the scratch and download directories exist
+		if(!opt.list_only){
 
-	cerr << "Found metadata for " << num_sra_run << " SRA runs in " 
-		<< profile_parse_xml << " sec" << endl;
-	
-	log << "Found metadata for " << num_sra_run << " SRA runs in " 
-		<< profile_parse_xml << " sec" << endl;
-
-	if(opt.list_only){
-
-		for(MAP<string, FilterInfo>::const_iterator i = db.begin();i != db.end();++i){
+			if( !make_dir(opt.download_dir) ){
+				
+				cerr << "Unable to create download directory: " << opt.download_dir << endl;
+				throw __FILE__ ":main: Unable to create download directory";
+			}
 			
-			cout << i->first << endl;
-			cout << "\texperiment_accession : " << i->second.experiment_accession << endl;
-			cout << "\texperiment_title : " << i->second.experiment_title << endl;
-			cout << "\texperiment_design_description : " << i->second.experiment_design_description << endl;
-			cout << "\texperiment_library_name : " << i->second.experiment_library_name << endl;
-			cout << "\texperiment_library_strategy : " << i->second.experiment_library_strategy << endl;
-			cout << "\texperiment_library_source : " << i->second.experiment_library_source << endl;
-			cout << "\texperiment_library_selection : " << i->second.experiment_library_selection << endl;
-			cout << "\texperiment_instrument_model : " << i->second.experiment_instrument_model << endl;
-			cout << "\tsample_accession : " << i->second.sample_accession << endl;
-			cout << "\tsample_taxa : " << i->second.sample_taxa << endl;
+			if( !make_dir(opt.bloom_dir) ){
+				
+				cerr << "Unable to create Bloom filter directory: " << opt.bloom_dir << endl;
+				throw __FILE__ ":main: Unable to create Bloom filter directory";
+			}
+		}
 
-			if( !i->second.sample_attributes.empty() ){
+		// Step 1: Parse the SRA metadata to extract all of the SRA runs and selected metadata
+		MAP<string, FilterInfo> db;
 
-				cout << "\tsample_attributes" << endl;
+		cerr << "Reading NCBI metadata from " << opt.metadata_file << endl;
+		log << "Reading NCBI metadata from " << opt.metadata_file << endl;
 
-				for(MULTIMAP<string, string>::const_iterator j = i->second.sample_attributes.begin();
-					j != i->second.sample_attributes.end();++j){
-					
-					cout << "\t\t" << j->first << " : " << j->second << endl;
+		time_t profile_parse_xml = time(NULL);
+
+		parse_sra_metadata(db, opt.metadata_file, opt);
+
+		profile_parse_xml = time(NULL) - profile_parse_xml;
+			
+		const size_t num_sra_run = db.size();
+
+		cerr << "Found metadata for " << num_sra_run << " SRA runs in " 
+			<< profile_parse_xml << " sec" << endl;
+		
+		log << "Found metadata for " << num_sra_run << " SRA runs in " 
+			<< profile_parse_xml << " sec" << endl;
+
+		if(opt.list_only){
+
+			for(MAP<string, FilterInfo>::const_iterator i = db.begin();i != db.end();++i){
+				
+				cout << i->first << endl;
+				cout << "\tdate_received : " << i->second.date_received << endl;
+				cout << "\texperiment_accession : " << i->second.experiment_accession << endl;
+				cout << "\texperiment_title : " << i->second.experiment_title << endl;
+				cout << "\texperiment_design_description : " << i->second.experiment_design_description << endl;
+				cout << "\texperiment_library_name : " << i->second.experiment_library_name << endl;
+				cout << "\texperiment_library_strategy : " << i->second.experiment_library_strategy << endl;
+				cout << "\texperiment_library_source : " << i->second.experiment_library_source << endl;
+				cout << "\texperiment_library_selection : " << i->second.experiment_library_selection << endl;
+				cout << "\texperiment_instrument_model : " << i->second.experiment_instrument_model << endl;
+				cout << "\tsample_accession : " << i->second.sample_accession << endl;
+				cout << "\tsample_taxa : " << i->second.sample_taxa << endl;
+
+				if( !i->second.sample_attributes.empty() ){
+
+					cout << "\tsample_attributes" << endl;
+
+					for(MULTIMAP<string, string>::const_iterator j = i->second.sample_attributes.begin();
+						j != i->second.sample_attributes.end();++j){
+						
+						cout << "\t\t" << j->first << " : " << j->second << endl;
+					}
 				}
+
+				cout << "\tstudy_accession : " << i->second.study_accession << endl;
+				cout << "\tstudy_title : " << i->second.study_title << endl;
+				cout << "\tstudy_abstract : " << i->second.study_abstract << endl;
 			}
 
-			cout << "\tstudy_accession : " << i->second.study_accession << endl;
-			cout << "\tstudy_title : " << i->second.study_title << endl;
-			cout << "\tstudy_abstract : " << i->second.study_abstract << endl;
+			return EXIT_SUCCESS;
 		}
 
-		return EXIT_SUCCESS;
-	}
-
-	cerr << "Extracting database keys" << endl;
-	
-	const vector<string> accessions = keys(db);
-	
-	const size_t num_accessions = accessions.size();
-	
-	cerr << "Found " << num_accessions 
-		<< " SRA accession to download.\nDownloading sequence data using "
-		<< opt.num_download_threads << " threads" << endl;
-	
-	time_t profile_download = time(NULL);
-	
-	size_t curr_run = 0;
-
-	// The current directory is needed to generate the scripts that will
-	// be submitted to the scheduler for Bloom filter creation.
-	char* working_dir = getcwd(NULL, 0);
-
-	if(working_dir == NULL){
-		throw __FILE__ ":main_leader: Unable to obtain working directory";
-	}
-	
-	// Reduce clutter for informative messages
-	cerr << setprecision(3);
-	log << setprecision(3);
-
-	size_t total_sra_download_size = 0;
-	
-	#pragma omp parallel for num_threads(opt.num_download_threads)
-	for(size_t i = 0;i < num_accessions;++i){
-	//for(size_t i = 0;i < 2;++i){
-	
-		MAP<string, FilterInfo>::const_iterator db_iter = db.find(accessions[i]);
+		cerr << "Extracting database keys" << endl;
 		
-		if( db_iter == db.end() ){
-			throw __FILE__ ":main: Unable to look up SRA accession";
-		}
-
-		const bool skip_download = 
-			existing_sra_accessions.find(db_iter->first) != existing_sra_accessions.end();
+		const vector<string> accessions = keys(db);
 		
-		#pragma omp critical
-		{
-			++curr_run;
+		const size_t num_accessions = accessions.size();
+		
+		cerr << "Found " << num_accessions 
+			<< " SRA accession to download.\nDownloading sequence data using "
+			<< opt.num_download_threads << " threads" << endl;
+		
+		time_t profile_download = time(NULL);
+		
+		size_t curr_run = 0;
 
-			cerr << "Downloading " << db_iter->first << " (" << curr_run << "): "
-				<< (100.0*curr_run)/num_sra_run << '%' << endl;
+		// The current directory is needed to generate the scripts that will
+		// be submitted to the scheduler for Bloom filter creation.
+		char* working_dir = getcwd(NULL, 0);
 
-			if(skip_download){
-				cerr << "Skiping " << db_iter->first << " (already downloaded)" << endl;
-			}
+		if(working_dir == NULL){
+			throw __FILE__ ":main_leader: Unable to obtain working directory";
 		}
 		
-		if(skip_download){
-			continue;
-		}
-		
-		// Change the working directory to the current run directory. This is needed
-		// to ensure that any "helper" files that may be associated with SRA run
-		// files (i.e. ".sra.vdbcache" and external reference sequences that are
-		// required to decode aligned reads) are contained *within* the run directory.
-		// This is will make it easier to clean up!
-		const string run_dir = opt.download_dir + PATH_SEPARATOR + db_iter->first + "_run";
-		
-		if( !make_dir(run_dir) ){
-			throw __FILE__ ":main_leader: Unable to create run directory";
-		}
+		// Reduce clutter for informative messages
+		cerr << setprecision(3);
+		log << setprecision(3);
 
-		// Note that the working directory is *process* dependent on Linux -- not thread
-		// dependent! As a result, we cannot chdir() within OpenMP (or pthread) threads.
-		//chdir( run_dir.c_str() );
+		size_t total_sra_download_size = 0;
 		
-		// Write the metadata to a file in the run_dir
-		const string meta_name = run_dir + PATH_SEPARATOR + db_iter->first + ".info";
+		#pragma omp parallel for num_threads(opt.num_download_threads)
+		for(size_t i = 0;i < num_accessions;++i){
+		//for(size_t i = 0;i < 2;++i){
 		
-		ofstream fmeta(meta_name.c_str(), ios::binary);
-		
-		if(!fmeta){
-			throw __FILE__ ":main: Unable to write metadata info file";
-		}
-		
-		binary_write(fmeta, db_iter->second);
-		
-		fmeta.close();
-		
-		// For initial development only -- will need to put prefetch in the path
-		// ** Prefetch will (by default) create a subdirectory with the same name
-		// ** as the run accession (trying to change this with -O and/or -o
-		// ** was not successfull)
-		//
-		// Note that the "prefetch" executable is actually a perl script that wraps
-		// the executable shown below.
-		//
-		// As of Jan 27, 2020, NCBI has informed me that new versions of the SRA toolkit
-		// will not support Aspera downloads. Hence the use of the "-t http" (even though
-		// prefetch should figure this out on its own).
-		//
-		// The default max-size for prefetch is 20G; After increasing it to 100G, I have observed
-		// that there are some SRA records much larger than 20G that yeild Bloom filter sizes that are
-		// *greater* than the current maximum allowed Bloom filter size (currently 2GB).
-		// 	55G	SRR10054704
-		// 	54G	SRR10054705
-		//	68G	SRR5738871
-		//	69G	SRR5738872
-
-		const size_t max_download_size = 30*GB;
-		
-		stringstream fetch_cmd;
-		
-		fetch_cmd << "$HOME/src/BIGSI/SRA/bin/prefetch-orig.2.10.0 --max-size " 
-			<< max_download_size << " -t http -O " << run_dir << " " << db_iter->first;
-		
-		// Track the number of download attempts
-		unsigned int num_attempts = 1;
-
-		time_t fetch_profile = time(NULL);
-		
-		while(num_attempts <= opt.max_num_download_attempts){
-
-			++num_attempts;
-
-			system( fetch_cmd.str().c_str() );
-		
-			// If the SRA download was successfull, a run/run.sra file
-			// will have been created in the current directory.
-			const string sra_name = run_dir + PATH_SEPARATOR + 
-				db_iter->first + PATH_SEPARATOR + 
-				db_iter->first + ".sra";
+			MAP<string, FilterInfo>::const_iterator db_iter = db.find(accessions[i]);
 			
-			if( is_file(sra_name) ){
-				break;
+			if( db_iter == db.end() ){
+				throw __FILE__ ":main: Unable to look up SRA accession";
 			}
 
-			cerr << "\tRetrying download (attempt " << num_attempts << ")" << endl;
-		}
-		
-		if(num_attempts > opt.max_num_download_attempts){
-
-			cerr << "\tFailed to download " << db_iter->first << " after " << (num_attempts - 1) 
-				<< " attempts" << endl;
-			log << "Failed to download " << db_iter->first << " after " << (num_attempts - 1) 
-				<< " attempts" << endl;
-			
-			// Remove any files or directories left over from this failed attempt
-			// For example, attempting to download a controlled access SRA records
-			// (with data from dbgap) will create a directory and metadata file, but
-			// no SRA data.
-			remove_all(run_dir);
-			
-			continue;
-		}
-		
-		// For SRA records with associated alignments, the "prefetch" tool likes to create a subdirectory
-		// in the *current working directory* to store the reference sequences. These references *should* be
-		// placed in: run_dir + PATH_SEPARATOR + db_iter->first.
-		// I suspect this is a bug (not a feature!) in prefetch. However, until it is fixed, we need to manually test
-		// for the existance of a subdirectory with the current accession name, and, if it exists, move the contents
-		// to the correct location!
-		if( is_dir(db_iter->first) ){
-			
-			cerr << "\tMoving SRA associated files to the correct location" << endl;
-			
-			// Please note that the current implementation of move_files uses the "rename()" library function
-			// to move files -- this will only work if both the source and destination directories are on
-			// the same file system!
-			const bool ret = move_files(db_iter->first, // source directory
-				run_dir + PATH_SEPARATOR + db_iter->first, // destination directory
-				true); // Remove source directory
+			const bool skip_download = 
+				existing_sra_accessions.find(db_iter->first) != existing_sra_accessions.end();
 			
 			#pragma omp critical
-			if(!ret){
-			
-				cerr << "\tError moving SRA associated files" << endl;
-				log << "Error moving SRA associated files for " << db_iter->first << endl;
-			}
-		} 
-		
-		fetch_profile = time(NULL) - fetch_profile;
-		
-		const string sra_file_name = run_dir + PATH_SEPARATOR + db_iter->first + 
-			PATH_SEPARATOR + db_iter->first + ".sra";
-		const size_t sra_size = file_size(sra_file_name);
-		
-		#pragma omp critical
-		{
-			cerr << "Downloaded " << db_iter->first << " in " << fetch_profile << " sec ("
-				<< double(sra_size)/GB << " GB)" << endl;
+			{
+				++curr_run;
 
-			////////////////////////////////////////////////////////////////////////////////
-			// "Downloaded" Is a keyword in the log file that we will use when restarting an
-			// SRA download to skip already downloaded records.
-			log << "Downloaded " << db_iter->first  << endl;
-			////////////////////////////////////////////////////////////////////////////////
-		}
-		
-		// Check to see if the current SRA data directory contains a ".vdbcache" file.
-		// If so, we assume that the SRA files contain aligned reads that are more 
-		// computationally intensive to decompress. To handle this increased computational
-		// burden, use additional threads to read and decompress the SRA data.
-		const bool is_aligned_reads = has_aligned_reads(run_dir);
-		
-		// Use the cluster queueing to schedule the conversion of the SRA data into a Bloom filter
-		// using a script that we will generate a run-time and pipe to qsub command
-		stringstream bloom_cmd;
-		
-		// 1) Note that we need to escape the '!' to keep bash from try to interpret the command
-		//    as an event from the history buffer
-		// 2) The 'working_dir' string is the directory that we executed the sra_download program in. It
-		//    is also used as the home directory for the cluster script to make sure that relative and
-		//    absolute paths are processed correctly.
-		// 3) The MPI parameters (--bind-to socket --oversubscribe) were hand-tuned for good
-		//    performance on beagle.lanl.gov. Other (i.e. newer) machines will likely need additional
-		//    tuning.
-		// 4) The number of threads to use for reading the SRA data file (5 for "regular" reads and
-		//    11 for aligned reads) is based on manual benchmarking on beagle.lanl.gov.
-		//    If we use too many threads to read "regular" (i.e. unaligned) reads, we end up overwhelming
-		//    the NFS file system (might work if we ever get a parallel file system).
-		//	- The values of 5 (not 6) and 11 (not 12) are choosen to account for the extra thread
-		//        spawned by the API for reading SRA files.
-		// 5) Disabled the infinband network (using "--mca btl ^openib") until I can figure out why 
-		//    it is not working with OpenMPI v 3 (I may just need to update beagle!!).
-		
-		const string bloom_file_name = opt.bloom_dir + PATH_SEPARATOR 
-			+ db_iter->first + allowed_filter_extention;
-		
-		// Need to make these user configurable
-		const size_t ranks_per_node = 4; // For beagle.lanl.gov
-		const size_t bytes_per_node = size_t(10)*GB; // For beagle.lanl.gov
-		
-		const size_t num_node = max(size_t(1),
-			size_t( ceil(double(sra_size)/bytes_per_node) ) );
-		
-		// Maximum number of attempts to create a Bloom filter
-		const size_t max_bloom_iter = 3;
-		
-		bloom_cmd << "printf \"#\\!/bin/sh\\n\\n"
-			<< "cd " << working_dir << "\\n"
-			<< "iter=1\\n"
-			<< "while [ \\$iter -le " << max_bloom_iter << " ] \\n"
-			<< "do\\n"
-			<< "mpirun -np " << ranks_per_node*num_node << " --bind-to socket --oversubscribe --mca btl ^openib "
-			<< "\\$HOME/src/BIGSI/bigsi++1/bloomer -v -i " << run_dir
-			<< " -o " << bloom_file_name
-			<< " -k " << opt.kmer_len << " -p " << opt.false_positive_probability 
-			<< " --len.min " << opt.min_log_2_filter_len
-			<< " --len.max " << opt.max_log_2_filter_len
-			<< " --slice " << (is_aligned_reads ? 11 : 5) << "\\n"
-			<< "STATUS=\\$?\\n"
-			<< "if [ \\$STATUS == 0 ] \\n"
-			<< "then\\n"
-			<< "iter=" << max_bloom_iter + 1 << "\\n" // Success! Break out of the loop!
-			<< "else\\n"
-			<< "iter=\\$(( \\$iter + 1 ))\\n" // Failure! Increment the loop counter
-			<< "fi\\n"
-			<< "done\\n"
-			<< "\" | qsub -lnodes=" << num_node
-			//<< " -e \\$HOME/src/BIGSI/bigsi++1/debug_status -o \\$HOME/src/BIGSI/bigsi++1/debug_status";
-			<< " -e /dev/null -o /dev/null";
-		
-		//cerr << bloom_cmd.str() << endl;
-		
-		system( bloom_cmd.str().c_str() );
-		
-		#pragma omp atomic
-		total_sra_download_size += sra_size;
-		
-		cerr << "Computing Bloom filter using " << ranks_per_node 
-			<< " MPI ranks on " << num_node << " node" 
-			<< ( (num_node == 1) ? "" : "s") << endl;
-		cerr << "Current download rate is " 
-			<< (double(total_sra_download_size)/GB)/(double(time(NULL) - profile_download)/SEC_PER_DAY)
-			<< " GB/day" << endl;
+				cerr << "Downloading " << db_iter->first << " (" << curr_run << "): "
+					<< (100.0*curr_run)/num_sra_run << '%' << endl;
+
+				if(skip_download){
+					cerr << "Skiping " << db_iter->first << " (already downloaded)" << endl;
+				}
+			}
 			
-		// Optionally sleep to (a) prevent downloading faster than we can convert
-		// SRA files into Bloom filters and (b) avoid making the good folks at the NCBI
-		// annoyed with us ...
-		if(opt.sleep_interval > 0){
-			sleep(opt.sleep_interval);
-		}
-		
-		if(opt.max_backlog > 0){
+			if(skip_download){
+				continue;
+			}
 			
-			const unsigned int backlog_sleep = 30;
-			size_t sleep_iter = 0;
+			// Change the working directory to the current run directory. This is needed
+			// to ensure that any "helper" files that may be associated with SRA run
+			// files (i.e. ".sra.vdbcache" and external reference sequences that are
+			// required to decode aligned reads) are contained *within* the run directory.
+			// This is will make it easier to clean up!
+			const string run_dir = opt.download_dir + PATH_SEPARATOR + db_iter->first + "_run";
 			
-			while( count_subdirectories(opt.download_dir) >= opt.max_backlog ){
+			if( !make_dir(run_dir) ){
+				throw __FILE__ ":main_leader: Unable to create run directory";
+			}
+
+			// Note that the working directory is *process* dependent on Linux -- not thread
+			// dependent! As a result, we cannot chdir() within OpenMP (or pthread) threads.
+			//chdir( run_dir.c_str() );
+			
+			// Write the metadata to a file in the run_dir
+			const string meta_name = run_dir + PATH_SEPARATOR + db_iter->first + ".info";
+			
+			ofstream fmeta(meta_name.c_str(), ios::binary);
+			
+			if(!fmeta){
+				throw __FILE__ ":main: Unable to write metadata info file";
+			}
+			
+			binary_write(fmeta, db_iter->second);
+			
+			fmeta.close();
+			
+			// For initial development only -- will need to put prefetch in the path
+			// ** Prefetch will (by default) create a subdirectory with the same name
+			// ** as the run accession (trying to change this with -O and/or -o
+			// ** was not successfull)
+			//
+			// Note that the "prefetch" executable is actually a perl script that wraps
+			// the executable shown below.
+			//
+			// As of Jan 27, 2020, NCBI has informed me that new versions of the SRA toolkit
+			// will not support Aspera downloads. Hence the use of the "-t http" (even though
+			// prefetch should figure this out on its own).
+			//
+			// The default max-size for prefetch is 20G; After increasing it to 100G, I have observed
+			// that there are some SRA records much larger than 20G that yeild Bloom filter sizes that are
+			// *greater* than the current maximum allowed Bloom filter size (currently 2GB).
+			// 	55G	SRR10054704
+			// 	54G	SRR10054705
+			//	68G	SRR5738871
+			//	69G	SRR5738872
+
+			const size_t max_download_size = 30*GB;
+			
+			stringstream fetch_cmd;
+			
+			fetch_cmd << "$HOME/src/BIGSI/SRA/bin/prefetch-orig.2.10.0 --max-size " 
+				<< max_download_size << " -t http -O " << run_dir << " " << db_iter->first;
+			
+			// Track the number of download attempts
+			unsigned int num_attempts = 1;
+
+			time_t fetch_profile = time(NULL);
+			
+			while(num_attempts <= opt.max_num_download_attempts){
+
+				++num_attempts;
+
+				system( fetch_cmd.str().c_str() );
+			
+				// If the SRA download was successfull, a run/run.sra file
+				// will have been created in the current directory.
+				const string sra_name = run_dir + PATH_SEPARATOR + 
+					db_iter->first + PATH_SEPARATOR + 
+					db_iter->first + ".sra";
+				
+				if( is_file(sra_name) ){
+					break;
+				}
+
+				cerr << "\tRetrying download (attempt " << num_attempts << ")" << endl;
+			}
+			
+			if(num_attempts > opt.max_num_download_attempts){
+
+				cerr << "\tFailed to download " << db_iter->first << " after " << (num_attempts - 1) 
+					<< " attempts" << endl;
+				log << "Failed to download " << db_iter->first << " after " << (num_attempts - 1) 
+					<< " attempts" << endl;
+				
+				// Remove any files or directories left over from this failed attempt
+				// For example, attempting to download a controlled access SRA records
+				// (with data from dbgap) will create a directory and metadata file, but
+				// no SRA data.
+				remove_all(run_dir);
+				
+				continue;
+			}
+			
+			// For SRA records with associated alignments, the "prefetch" tool likes to create a subdirectory
+			// in the *current working directory* to store the reference sequences. These references *should* be
+			// placed in: run_dir + PATH_SEPARATOR + db_iter->first.
+			// I suspect this is a bug (not a feature!) in prefetch. However, until it is fixed, we need to manually test
+			// for the existance of a subdirectory with the current accession name, and, if it exists, move the contents
+			// to the correct location!
+			if( is_dir(db_iter->first) ){
+				
+				cerr << "\tMoving SRA associated files to the correct location" << endl;
+				
+				// Please note that the current implementation of move_files uses the "rename()" library function
+				// to move files -- this will only work if both the source and destination directories are on
+				// the same file system!
+				const bool ret = move_files(db_iter->first, // source directory
+					run_dir + PATH_SEPARATOR + db_iter->first, // destination directory
+					true); // Remove source directory
 				
 				#pragma omp critical
-				if(sleep_iter == 0){
-					
-					// Only log the first time
-					cerr << "Maximum download backlog exceeded; sleeping" << endl;
-					log << "Maximum download backlog exceeded; sleeping" << endl;
+				if(!ret){
+				
+					cerr << "\tError moving SRA associated files" << endl;
+					log << "Error moving SRA associated files for " << db_iter->first << endl;
 				}
-				
-				sleep(backlog_sleep);
-				
-				++sleep_iter;
-			}
+			} 
+			
+			fetch_profile = time(NULL) - fetch_profile;
+			
+			const string sra_file_name = run_dir + PATH_SEPARATOR + db_iter->first + 
+				PATH_SEPARATOR + db_iter->first + ".sra";
+			const size_t sra_size = file_size(sra_file_name);
 			
 			#pragma omp critical
-			if(sleep_iter > 0){
-				log << "Slept for " << backlog_sleep*sleep_iter << " sec" << endl;
+			{
+				cerr << "Downloaded " << db_iter->first << " in " << fetch_profile << " sec ("
+					<< double(sra_size)/GB << " GB)" << endl;
+
+				////////////////////////////////////////////////////////////////////////////////
+				// "Downloaded" Is a keyword in the log file that we will use when restarting an
+				// SRA download to skip already downloaded records.
+				log << "Downloaded " << db_iter->first  << endl;
+				////////////////////////////////////////////////////////////////////////////////
 			}
-		}		
+			
+			// Check to see if the current SRA data directory contains a ".vdbcache" file.
+			// If so, we assume that the SRA files contain aligned reads that are more 
+			// computationally intensive to decompress. To handle this increased computational
+			// burden, use additional threads to read and decompress the SRA data.
+			const bool is_aligned_reads = has_aligned_reads(run_dir);
+			
+			// Use the cluster queueing to schedule the conversion of the SRA data into a Bloom filter
+			// using a script that we will generate a run-time and pipe to qsub command
+			stringstream bloom_cmd;
+			
+			// 1) Note that we need to escape the '!' to keep bash from try to interpret the command
+			//    as an event from the history buffer
+			// 2) The 'working_dir' string is the directory that we executed the sra_download program in. It
+			//    is also used as the home directory for the cluster script to make sure that relative and
+			//    absolute paths are processed correctly.
+			// 3) The MPI parameters (--bind-to socket --oversubscribe) were hand-tuned for good
+			//    performance on beagle.lanl.gov. Other (i.e. newer) machines will likely need additional
+			//    tuning.
+			// 4) The number of threads to use for reading the SRA data file (5 for "regular" reads and
+			//    11 for aligned reads) is based on manual benchmarking on beagle.lanl.gov.
+			//    If we use too many threads to read "regular" (i.e. unaligned) reads, we end up overwhelming
+			//    the NFS file system (might work if we ever get a parallel file system).
+			//	- The values of 5 (not 6) and 11 (not 12) are choosen to account for the extra thread
+			//        spawned by the API for reading SRA files.
+			// 5) Disabled the infinband network (using "--mca btl ^openib") until I can figure out why 
+			//    it is not working with OpenMPI v 3 (I may just need to update beagle!!).
+			
+			const string bloom_file_name = opt.bloom_dir + PATH_SEPARATOR 
+				+ db_iter->first + allowed_filter_extention;
+			
+			// Need to make these user configurable
+			const size_t ranks_per_node = 4; // For beagle.lanl.gov
+			const size_t bytes_per_node = size_t(10)*GB; // For beagle.lanl.gov
+			
+			const size_t num_node = max(size_t(1),
+				size_t( ceil(double(sra_size)/bytes_per_node) ) );
+			
+			// Maximum number of attempts to create a Bloom filter
+			const size_t max_bloom_iter = 3;
+			
+			bloom_cmd << "printf \"#\\!/bin/sh\\n\\n"
+				<< "cd " << working_dir << "\\n"
+				<< "iter=1\\n"
+				<< "while [ \\$iter -le " << max_bloom_iter << " ] \\n"
+				<< "do\\n"
+				<< "mpirun -np " << ranks_per_node*num_node << " --bind-to socket --oversubscribe --mca btl ^openib "
+				<< "\\$HOME/src/BIGSI/bigsi++1/bloomer -v -i " << run_dir
+				<< " -o " << bloom_file_name
+				<< " -k " << opt.kmer_len << " -p " << opt.false_positive_probability 
+				<< " --len.min " << opt.min_log_2_filter_len
+				<< " --len.max " << opt.max_log_2_filter_len
+				<< " --slice " << (is_aligned_reads ? 11 : 5) << "\\n"
+				<< "STATUS=\\$?\\n"
+				<< "if [ \\$STATUS == 0 ] \\n"
+				<< "then\\n"
+				<< "iter=" << max_bloom_iter + 1 << "\\n" // Success! Break out of the loop!
+				<< "else\\n"
+				<< "iter=\\$(( \\$iter + 1 ))\\n" // Failure! Increment the loop counter
+				<< "fi\\n"
+				<< "done\\n"
+				<< "\" | qsub -lnodes=" << num_node
+				//<< " -e \\$HOME/src/BIGSI/bigsi++1/debug_status -o \\$HOME/src/BIGSI/bigsi++1/debug_status";
+				<< " -e /dev/null -o /dev/null";
+			
+			//cerr << bloom_cmd.str() << endl;
+			
+			system( bloom_cmd.str().c_str() );
+			
+			#pragma omp atomic
+			total_sra_download_size += sra_size;
+			
+			cerr << "Computing Bloom filter using " << ranks_per_node 
+				<< " MPI ranks on " << num_node << " node" 
+				<< ( (num_node == 1) ? "" : "s") << endl;
+			cerr << "Current download rate is " 
+				<< (double(total_sra_download_size)/GB)/(double(time(NULL) - profile_download)/SEC_PER_DAY)
+				<< " GB/day" << endl;
+				
+			// Optionally sleep to (a) prevent downloading faster than we can convert
+			// SRA files into Bloom filters and (b) avoid making the good folks at the NCBI
+			// annoyed with us ...
+			if(opt.sleep_interval > 0){
+				sleep(opt.sleep_interval);
+			}
+			
+			if(opt.max_backlog > 0){
+				
+				const unsigned int backlog_sleep = 30;
+				size_t sleep_iter = 0;
+				
+				while( count_subdirectories(opt.download_dir) >= opt.max_backlog ){
+					
+					#pragma omp critical
+					if(sleep_iter == 0){
+						
+						// Only log the first time
+						cerr << "Maximum download backlog exceeded; sleeping" << endl;
+						log << "Maximum download backlog exceeded; sleeping" << endl;
+					}
+					
+					sleep(backlog_sleep);
+					
+					++sleep_iter;
+				}
+				
+				#pragma omp critical
+				if(sleep_iter > 0){
+					log << "Slept for " << backlog_sleep*sleep_iter << " sec" << endl;
+				}
+			}		
+		}
+		
+		if(working_dir != NULL){
+
+			free(working_dir);
+			working_dir = NULL;
+		}
+
+		profile_download = time(NULL) - profile_download;
+		
+		profile = time(NULL) - profile;
+		
+		cerr << "Finished download in " << profile_download << " sec" << endl;
+		cerr << "Total run time was " << profile << " sec" << endl;
+		cerr << "Total SRA download size was " << double(total_sra_download_size)/GB << " GB" << endl;
+		
+		log << "Finished download in " << profile_download << " sec" << endl;
+		log << "Total run time was " << profile << " sec" << endl;
+		log << "Total SRA download size was " << double(total_sra_download_size)/GB << " GB" << endl;
+
+		profile = time(NULL);
+
+		log << "Stopped logging: " << ctime(&profile);
 	}
-	
-	if(working_dir != NULL){
+	catch(const char* error){
 
-		free(working_dir);
-		working_dir = NULL;
+		cerr << "Caught the error: " << error << endl;
+		return EXIT_FAILURE;
 	}
+	catch(...){
 
-	profile_download = time(NULL) - profile_download;
-	
-	profile = time(NULL) - profile;
-	
-	cerr << "Finished download in " << profile_download << " sec" << endl;
-	cerr << "Total run time was " << profile << " sec" << endl;
-	cerr << "Total SRA download size was " << double(total_sra_download_size)/GB << " GB" << endl;
-	
-	log << "Finished download in " << profile_download << " sec" << endl;
-	log << "Total run time was " << profile << " sec" << endl;
-	log << "Total SRA download size was " << double(total_sra_download_size)/GB << " GB" << endl;
-
-	profile = time(NULL);
-
-	log << "Stopped logging: " << ctime(&profile);
+		cerr << "Caught an unhandled error" << endl;
+		return EXIT_FAILURE;
+	}
 
     return EXIT_SUCCESS;
 }
 
-void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_file)
+void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_file,
+	const DownloadOptions &m_opt)
 {
 	TarIterator iter(m_metadata_file);
 
@@ -518,8 +536,20 @@ void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_
 	MAP<string, string> sample_to_taxa;
 	MULTIMAP< string, pair<string, string> > sample_to_attributes;
 	
+	MAP<string, Date> accession_to_date;
+
 	deque<string> invalid_accessions;
 	
+	// Helper variables for parsing the SRA accession sub-file
+	bool first_time_sra_accession_file = true;
+	size_t num_sra_accession_col = 0;
+	int accession_col = -1;
+	int status_col = -1;
+	int upate_col = -1;
+	int publish_col = -1;
+	int received_col = -1;
+	int type_col = -1;
+
 	size_t line_number = 0;
 	
 	while(iter){
@@ -787,27 +817,101 @@ void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_
 				// contain XML data.
 				valid_xml_file = false;
 				
-				// While we can identify *some* invalid SRA experiments by looking for external ids
-				// belonging to dbgap, this approach does not work for *all* SRA records. To catch
-				// additional, non-public records we must also search the the SRA Accessions file
+				// * While we can identify *some* invalid SRA experiments by looking for external ids
+				//   belonging to dbgap, this approach does not work for *all* SRA records. To catch
+				//   additional, non-public records we must also search the the SRA Accessions file
 				
 				//cerr << "In SRA Accession" << endl;
-				
-				if( ( (*iter).find("suppressed") != string::npos ) || 
-				    ( (*iter).find("controlled_access") != string::npos ) ){
-				    					
-					// The accession (which could be run, experiment, sample, ...) is in the first
-					// tab-delimited column
-					const size_t loc = (*iter).find('\t');
-				    
-					if(loc != string::npos){
-						
-						const string accession = (*iter).substr(0, loc);
-						
-						invalid_accessions.push_back(accession);
+
+				// We expect a tab-delimited set of columns
+				// 	- The SRA accession is in column 0
+				//	- The status is in column 2
+				//	- The update date is in column 3
+				//	- The received date is in column 5
+				// Dates are formatted as YYYY-MM-DDThh:mm:ssZ
+				// 	For example: "2010-03-24T03:10:22Z"
+				if(first_time_sra_accession_file){
+
+					const deque<string> cols = split(*iter, '\t');
+
+					num_sra_accession_col = cols.size();
+
+					first_time_sra_accession_file = false;
+
+					for(deque<string>::const_iterator i = cols.begin();i != cols.end();++i){
+
+						if(*i == "Accession"){
+							accession_col = i - cols.begin();
+						}
+
+						if(*i == "Status"){
+							status_col = i - cols.begin();
+						}
+
+						if(*i == "Updated"){
+							upate_col = i - cols.begin();
+						}
+
+						if(*i == "Published"){
+							publish_col = i - cols.begin();
+						}
+
+						if(*i == "Received"){
+							received_col = i - cols.begin();
+						}
+
+						if(*i == "Type"){
+							type_col = i - cols.begin();
+						}
+					}
+
+					// Make sure that we found all of the expected columns
+					if(accession_col < 0){
+						throw __FILE__ ":parse_sra_metadata: Did not find \"Accession\" column in SRA Accessions file";
+					}
+
+					if(status_col < 0){
+						throw __FILE__ ":parse_sra_metadata: Did not find \"Status\" column in SRA Accessions file";
+					}
+
+					if(upate_col < 0){
+						throw __FILE__ ":parse_sra_metadata: Did not find \"Updated\" column in SRA Accessions file";
+					}
+
+					if(publish_col < 0){
+						throw __FILE__ ":parse_sra_metadata: Did not find \"Published\" column in SRA Accessions file";
+					}
+
+					if(received_col < 0){
+						throw __FILE__ ":parse_sra_metadata: Did not find \"Received\" column in SRA Accessions file";
+					}
+
+					if(type_col < 0){
+						throw __FILE__ ":parse_sra_metadata: Did not find \"Type\" column in SRA Accessions file";
 					}
 				}
-				
+				else{
+
+					const deque<string> cols = split(*iter, '\t');
+
+					if(cols.size() != num_sra_accession_col){
+						throw __FILE__ ":main: Did not read the expected number of columns in the SRA Accession file";
+					}
+
+					// Only check RUN accessions
+					if(cols[type_col] == "RUN"){
+
+						if( ( cols[status_col] == "suppressed" ) || 
+							( cols[status_col] == "controlled_access" ) ){
+							
+							invalid_accessions.push_back( cols[accession_col] );
+						}
+						else{
+							accession_to_date[ cols[accession_col] ] = Date(cols[received_col]);
+						}
+					}
+				}
+
 				break;
 			case UNKNOWN:
 				
@@ -983,10 +1087,33 @@ void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_
 		//}
 	}
 
-	cerr << "Found " << invalid_accessions.size() << " SRA run/experiment/sample accessions to exclude" << endl;
+	if( !m_opt.required_source.empty() ){
+
+		// Exclude SRA accessions that do not have the required experimental source
+		// This search is *case sensistive* for now
+		for(MAP<string, FilterInfo>::const_iterator i = m_db.begin();i != m_db.end();++i){
+			if( m_opt.required_source.find(i->second.experiment_library_source) == m_opt.required_source.end() ){
+				invalid_accessions.push_back(i->first);
+			}
+		}
+	}
+
+	if( !m_opt.required_strategy.empty() ){
+
+		// Exclude SRA accessions that do not have the required experimental strategy
+		// This search is *case sensistive* for now
+		for(MAP<string, FilterInfo>::const_iterator i = m_db.begin();i != m_db.end();++i){
+			if( m_opt.required_strategy.find(i->second.experiment_library_strategy) == m_opt.required_strategy.end() ){
+				invalid_accessions.push_back(i->first);
+			}
+		}
+	}
+
+	cerr << "Found " << invalid_accessions.size() << " SRA run accessions to exclude" << endl;
 	
 	size_t num_invalid = 0;
 	
+	// Remove invalid accession
 	for(deque<string>::const_iterator i = invalid_accessions.begin();i != invalid_accessions.end();++i){
 		
 		MAP<string, FilterInfo>::const_iterator iter = m_db.find(*i);
@@ -1000,6 +1127,36 @@ void parse_sra_metadata(MAP<string, FilterInfo> &m_db, const string &m_metadata_
 	}
 	
 	cerr << "Removed " << num_invalid << " invalid/access controlled SRA runs" << endl;
+
+	// Remove accessions that are outside the allowed [from, to] dates
+	size_t num_invalid_date = 0;
+
+	for(MAP<string, Date>::const_iterator i = accession_to_date.begin();i != accession_to_date.end();++i){
+
+		if( (i->second < m_opt.begin_date) || (i->second > m_opt.end_date) ){
+
+			MAP<string, FilterInfo>::iterator iter = m_db.find(i->first);
+
+			if( iter != m_db.end() ){
+
+				m_db.erase(iter);
+
+				++num_invalid_date;
+			}
+		}
+	}
+
+	cerr << "Removed " << num_invalid_date << " SRA runs outside the allowed search dates" << endl;
+
+	// Inject the date information
+	for(MAP<string, Date>::const_iterator i = accession_to_date.begin();i != accession_to_date.end();++i){
+
+		MAP<string, FilterInfo>::iterator iter = m_db.find(i->first);
+
+		if( iter != m_db.end() ){
+			iter->second.date_received = i->second;
+		}
+	}
 }
 
 bool match_prefix(const string &m_query, const string &m_subject)
