@@ -1,5 +1,9 @@
 #include <mpi.h>
+
+#ifdef _OPENMP
 #include <omp.h> // For omp_get_max_threads()
+#endif // _OPENMP
+
 #include <math.h>
 
 #include <sstream>

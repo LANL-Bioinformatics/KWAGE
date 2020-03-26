@@ -12,7 +12,10 @@
 #include <signal.h>
 #include <math.h>
 
+#ifdef _OPENMP
 #include <omp.h>
+#endif //_OPENMP
+
 #include <ncbi-vdb/NGS.hpp> // For openReadCollection
 
 #include "options.h"
@@ -208,8 +211,13 @@ int main(int argc, char *argv[])
 			
 			#pragma omp parallel num_threads(opt.num_file_slice)
 			{
+				#ifdef _OPENMP
 				const size_t num_thread = omp_get_num_threads();
 				const size_t tid = omp_get_thread_num();
+				#else
+				const size_t num_thread = 1;
+				const size_t tid = 0;
+				#endif // _OPENMP
 				
 				deque<Word>& local_kmers = curr_kmers[tid];
 				
