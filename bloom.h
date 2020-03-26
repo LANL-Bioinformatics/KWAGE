@@ -9,14 +9,12 @@
 
 //#include <iostream> // DEBUG
 
+#include "date.h"
 #include "hash.h"
 #include "mpi_util.h"
 
 #define		MAP				std::unordered_map
 #define		MULTIMAP			std::unordered_multimap
-
-#define		MIN_LOG_2_BLOOM_FILTER_LEN	20
-#define		MAX_LOG_2_BLOOM_FILTER_LEN	31
 
 #define		MIN_NUM_HASH			1
 #define		MAX_NUM_HASH			5
@@ -446,7 +444,8 @@ struct FilterInfo
 		VARIABLE(SINGLE_ARG(MULTIMAP<std::string, std::string>), sample_attributes) \
 		VARIABLE(std::string, study_accession) \
 		VARIABLE(std::string, study_title) \
-		VARIABLE(std::string, study_abstract)
+		VARIABLE(std::string, study_abstract) \
+		VARIABLE(Date, date_received)
 	
 	#define VARIABLE(A, B) A B;
 		FILTER_INFO_MEMBERS
