@@ -19,7 +19,7 @@ CC = mpic++
 # The profile flag is only needed for development
 PROFILE = #-pg
 
-OPENMP = #-fopenmp
+OPENMP = -fopenmp
 FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -std=c++0x
 
 INC = -I. -I$(HOME)/zlib/include
