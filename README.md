@@ -32,6 +32,57 @@ In addition, the SRA toolkit and associated APIs are required if you would like 
 
 Please note that these NCBI libraries are only needed if you will need to either download SRA files and/or create Bloom filters from SRA files. If you only need to either build a database from existing Bloom filters or search an existing database, then these NCBI libraries are *not* needed.
 
+#### How to actually build the SRA toolkit packages
+It can be a little tricky to compile the ncbi-vdb, ngs and sra-tools packages. Here is a step-by-step guide (with specific package install commands for a Red Hat-like OS that uses the `yum` package manager):
+
+1. Install the `git` repository control software (e.g. `sudo yum install git`).
+2. Install a c/c++ compiler (e.g. `sudo yum group install "Development Tools"`).
+3. Install libxml2 development libraries (e.g. `sudo yum install libxml2-devel.x86_64`). Many Linux distributions ship with libxml2 but not the development headers, which will be needed.
+4. Create a directory to hold all of the NCBI SRA software (e.g. `mkdir SRA`). The rest of these instructions assume that the path to the SRA packages is `$HOME/SRA`.
+5. Download sra-tools from GitHub (e.g. `git clone https://github.com/ncbi/sra-tools.git`).
+6. Download ngs from GitHub (e.g. `git clone https://github.com/ncbi/ngs.git`).
+7. Download ncbi-vdb from GitHub (e.g. `git clone https://github.com/ncbi/ncbi-vdb.git`).
+8. Compile the NCBI packages in the **following order** (order is important!):
+
+```
+# Build and install ncbi-vdb
+cd $HOME/SRA/ncbi-vdb
+./configure --prefix=$HOME/SRA \
+	--with-ngs-sdk-prefix=$HOME/SRA/ngs
+make
+make install
+```
+
+```
+# Build and install ngs/ngs-sdk (a sub-package of ngs)
+cd $HOME/SRA/ngs/ngs-sdk
+./configure --prefix=$HOME/SRA/ngs/ngs-sdk
+make
+make install
+```
+
+```
+# Build and install ngs
+cd ngs
+./configure --prefix=$HOME/SRA \
+	--with-ncbi-vdb-prefix=$HOME/SRA/ncbi-vdb \
+	--with-ngs-sdk-prefix=$HOME/SRA/ncbi-vdb/ngs-sdk
+make
+make install
+```
+
+```
+# Build and install sra-tools
+cd sra-tools
+./configure --prefix=$HOME/SRA \
+	--with-ngs-sdk-prefix=$HOME/SRA/ncbi-vdb/ngs-sdk \
+	--with-ncbi-vdb-sources=$HOME/SRA/ncbi-vdb
+
+make
+make install
+```
+9. Run the vdb configuration tool: `$HOME/SRA/bin/vdb-config --interactive`. The options you select here will depend on your local compute environment (e.g. cloud vs local).
+
 ### Step 2: Edit the BIGSI++ Makefile
 After the three separate NCBI software packages have been downloaded and compiled, you will need to edit the BIGSI++ Makefile to specify the locations of both the include and library directories for the ncbi-vdb and ngs packages.
 
