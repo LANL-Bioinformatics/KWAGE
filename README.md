@@ -66,7 +66,7 @@ make install
 cd ngs
 ./configure --prefix=$HOME/SRA \
 	--with-ncbi-vdb-prefix=$HOME/SRA/ncbi-vdb \
-	--with-ngs-sdk-prefix=$HOME/SRA/ncbi-vdb/ngs-sdk
+	--with-ngs-sdk-prefix=$HOME/SRA/ngs/ngs-sdk
 make
 make install
 ```
@@ -75,7 +75,7 @@ make install
 # Build and install sra-tools
 cd sra-tools
 ./configure --prefix=$HOME/SRA \
-	--with-ngs-sdk-prefix=$HOME/SRA/ncbi-vdb/ngs-sdk \
+	--with-ngs-sdk-prefix=$HOME/SRA/ngs/ngs-sdk \
 	--with-ncbi-vdb-sources=$HOME/SRA/ncbi-vdb
 
 make
