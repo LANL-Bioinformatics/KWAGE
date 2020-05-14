@@ -16,7 +16,7 @@ Please note that the Bloom filters created by the `bloomer` tool and ingested by
 The following helper applications are also provided:
 1. `dump_db`, a tool for dumping the header, annotation, and first few bit slices of a database file.
 2. `check_bloom`, a tool for validating the checksum of a Bloom filter file.
-3. `SriRachA`, a tool for per-read, kmer-based searching of SRA records against a set of user-provided query sequences. This tool is useful for confirming and investigating the per-accession matches reported by BIGSI++. This tool is contained in the `sriracha/` subdirectory (with a separate `Makefile` and `documentation`).
+3. `SriRachA`, a tool for per-read, kmer-based searching of SRA records against a set of user-provided query sequences. This tool is useful for confirming and investigating the per-accession matches reported by BIGSI++. This tool is contained in the `SriRachA/` subdirectory (with a separate `Makefile` and `documentation`).
 
 ## Building and installing the code
 The BIGSI++ code is written in C++ and requires the MPI (message passing interface; I recommend [OpenMPI](https://www.open-mpi.org/)). A compiler that supports OpenMP is also suggested, but not required.
