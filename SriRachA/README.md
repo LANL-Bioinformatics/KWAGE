@@ -10,6 +10,8 @@ The SriRachA program queries all of the reads in a set of user specified SRA acc
   - To accelerate searches, the Message Passing Interface (MPI) is used to search non-overlapping slices of the sequence read data in an SRA accession. This can increase the bandwidth when downloading data from the SRA.
   - Currenlty, only the sequence data from an SRA record is downloaded (i.e. no quality scores, read names or other metadata is downloaded).
 
+An advantage of the parallel streaming approach and kmer-based search is that searching does not require large amounts of filesystem space or RAM (i.e. you can use lots of small cloud instances with no local storage).
+
 Due to the large amounts of data that may need to be downloaded, it is *strongly* recommended to run SriRachA in the cloud, using either Amazon (AWS) or Google (GCP). NCBI has placed in the SRA data in both the AWS and Google clouds, and you should make sure to run in the same region as the data (currently `us-east-1` for AWS and any region that starts with `us-` for GCP).
 
 Attempting to stream SRA data to a private (non-cloud) network will likely be painfully slow!
