@@ -182,7 +182,7 @@ void SrirachaOptions::load(int argc, char* argv[])
 		cerr << "\t-i <input sequence files> (can be repeated)" << endl;
 		cerr << "\t[-o <output filename>] (default is stdout)" << endl;
 		cerr << "\t[--read.len.min <minimum read length>] (default is " << DEFAULT_MIN_READ_LENGTH << ")" << endl;
-		cerr << "\t[--max-results <maximum number of results to show per accession/target>] (default is " 
+		cerr << "\t[--max-results <maximum number of results to show per accession/query>] (default is " 
 			<< DEFAULT_MAX_MATCH << ")" << endl;
 		cerr << "\t[-a <list of SRA accessions in a text file>]" << endl;
 		cerr << "\t[-v (increase the verbosity: silent, tacitern, normal, chatty. Default is silent)]" << endl;

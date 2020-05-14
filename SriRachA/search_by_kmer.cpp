@@ -114,7 +114,7 @@ void search_by_kmer(const string &m_seq, const unsigned int &m_read_index, const
 
 			const float score = float(count)/num_unique_kmer;
 
-			results.push_back( SearchMatch(m_read_index, m_read_subindex, score) );
+			results.push_back( SearchMatch(m_read_index, m_read_subindex, score, m_seq) );
 
 			if(score == 1.0){
 				++( (*num_perfect_match_ptr)[index] );

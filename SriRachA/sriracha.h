@@ -6,7 +6,7 @@
 
 #define		MAP		unordered_map
 
-#define		SRIRACHA_VERSION				"0.41"
+#define		SRIRACHA_VERSION				"0.42"
 
 #define		DEFAULT_MIN_READ_LENGTH			0
 #define		MIN_KMER_LEN					3
@@ -36,7 +36,8 @@ struct SearchMatch
 	#define SEARCH_MATCH_MEMBERS \
 		VARIABLE(unsigned int, read_index) \
 		VARIABLE(unsigned int, read_subindex) \
-		VARIABLE(float, score)
+		VARIABLE(float, score) \
+		VARIABLE(std::string, read_seq)
 
 	#define VARIABLE(A, B) A B;
 		SEARCH_MATCH_MEMBERS
@@ -47,8 +48,9 @@ struct SearchMatch
 		// Do nothing!
 	};
 
-	SearchMatch(const unsigned int &m_read_index, const unsigned int &m_read_subindex, const float &m_score):
-		read_index(m_read_index), read_subindex(m_read_subindex), score(m_score)
+	SearchMatch(const unsigned int &m_read_index, const unsigned int &m_read_subindex, const float &m_score,
+		const std::string &m_seq):
+		read_index(m_read_index), read_subindex(m_read_subindex), score(m_score), read_seq(m_seq)
 	{
 
 	};
@@ -56,7 +58,7 @@ struct SearchMatch
 	inline bool operator<(const SearchMatch &m_rhs) const
 	{
 		// If the scores are equal, sort matches by read index in
-		// ascending orer
+		// ascending order
 		if(score == m_rhs.score){
 
 			if(read_index == m_rhs.read_index){

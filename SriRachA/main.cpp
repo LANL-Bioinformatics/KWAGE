@@ -547,7 +547,7 @@ SRADownloadStatus search(const string &m_accession, ostream &m_out,
 					m_out << '.' << j->read_subindex;
 				}
 				
-				m_out << '\t' << j->score 
+				m_out << '\t' << j->score << '\t' << j->read_seq
 					<< '\t' << m_subject_kmers[i].first << endl;
 			}
 		}
