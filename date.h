@@ -109,9 +109,9 @@ class Date
 
 		inline bool operator==(const Date &m_rhs) const
 		{
-			return (m_rhs.day == m_rhs.day) &&
-				(m_rhs.month == m_rhs.month) &&
-				(m_rhs.year == m_rhs.year);
+			return (day == m_rhs.day) &&
+				(month == m_rhs.month) &&
+				(year == m_rhs.year);
 		};
 
 		inline bool operator<(const Date &m_rhs) const
