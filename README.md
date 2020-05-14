@@ -37,18 +37,21 @@ It can be a little tricky to compile the ncbi-vdb, ngs and sra-tools packages. H
 
 1. Install the `git` repository control software (e.g. `sudo yum install git`).
 2. Install a c/c++ compiler (e.g. `sudo yum group install "Development Tools"`).
-3. Install libxml2 development libraries (e.g. `sudo yum install libxml2-devel.x86_64`). Many Linux distributions ship with libxml2 but not the development headers, which will be needed.
-4. Create a directory to hold all of the NCBI SRA software (e.g. `mkdir SRA`). The rest of these instructions assume that the path to the SRA packages is `$HOME/SRA`.
-5. Download sra-tools from GitHub (e.g. `git clone https://github.com/ncbi/sra-tools.git`).
-6. Download ngs from GitHub (e.g. `git clone https://github.com/ncbi/ngs.git`).
-7. Download ncbi-vdb from GitHub (e.g. `git clone https://github.com/ncbi/ncbi-vdb.git`).
-8. Compile the NCBI packages in the **following order** (order is important!):
+4. Install a Java development kit (while Java is not used for BIGSI++, a jdk is needed to compile the ncbi.ngs package).
+5. Install libxml2 development libraries (e.g. `sudo yum install libxml2-devel.x86_64`). Many Linux distributions ship with libxml2 but not the development headers, which will be needed.
+6. Create a directory to hold all of the NCBI SRA software (e.g. `mkdir SRA`). The rest of these instructions assume that the path to the SRA packages is `$HOME/SRA`.
+7. Download sra-tools from GitHub (e.g. `git clone https://github.com/ncbi/sra-tools.git`).
+8. Download ngs from GitHub (e.g. `git clone https://github.com/ncbi/ngs.git`).
+9. Download ncbi-vdb from GitHub (e.g. `git clone https://github.com/ncbi/ncbi-vdb.git`).
+10. Compile the NCBI packages in the **following order** (order is important!):
 
 ```
 # Build and install ncbi-vdb
 cd $HOME/SRA/ncbi-vdb
 ./configure --prefix=$HOME/SRA \
 	--with-ngs-sdk-prefix=$HOME/SRA/ngs
+
+# Before building on Amazon's AWS (and depending on choice of image/instance), you may need to remove the `-Wa,-march=generic64+sse4` flags from `ncbi-vdb/libs/krypto/Makefile` prior to running `make`
 make
 make install
 ```
@@ -62,8 +65,16 @@ make install
 ```
 
 ```
+# Build and install ngs/ngs-java
+cd $HOME/SRA/ngs/ngs-java
+./configure --prefix=$HOME/SRA
+make
+make install
+```
+
+```
 # Build and install ngs
-cd ngs
+cd $HOME/SRA/ngs
 ./configure --prefix=$HOME/SRA \
 	--with-ncbi-vdb-prefix=$HOME/SRA/ncbi-vdb \
 	--with-ngs-sdk-prefix=$HOME/SRA/ngs/ngs-sdk
@@ -73,7 +84,7 @@ make install
 
 ```
 # Build and install sra-tools
-cd sra-tools
+cd cd $HOME/SRA/sra-tools
 ./configure --prefix=$HOME/SRA \
 	--with-ngs-sdk-prefix=$HOME/SRA/ngs/ngs-sdk \
 	--with-ncbi-vdb-sources=$HOME/SRA/ncbi-vdb
@@ -81,7 +92,13 @@ cd sra-tools
 make
 make install
 ```
-9. Run the vdb configuration tool: `$HOME/SRA/bin/vdb-config --interactive`. The options you select here will depend on your local compute environment (e.g. cloud vs local).
+11. Run the vdb configuration tool: `$HOME/SRA/bin/vdb-config --interactive`.
+	- Select the `[X] report cloud instance identity` option
+	- At this time, do *not* select the `[ ] accept charges for AWS`.
+	- Select `Save`
+	- Select `Exit`
+
+The options you select here will depend on your local compute environment (e.g. cloud vs local).
 
 ### Step 2: Edit the BIGSI++ Makefile
 After the three separate NCBI software packages have been downloaded and compiled, you will need to edit the BIGSI++ Makefile to specify the locations of both the include and library directories for the ncbi-vdb and ngs packages.
