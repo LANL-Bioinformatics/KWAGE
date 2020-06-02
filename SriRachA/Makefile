@@ -16,6 +16,7 @@ INC = -I. \
 LIBS = -lm  \
 	-L$(SRA)/lib64 \
 	-lncbi-ngs-c++       \
+	-lngs-c++ \
 	-lncbi-vdb-static    \
 	-ldl
 
