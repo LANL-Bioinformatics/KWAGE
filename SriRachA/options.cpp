@@ -26,6 +26,10 @@ void SrirachaOptions::load(int argc, char* argv[])
 	max_num_match = DEFAULT_MAX_MATCH;
 	max_retry = 0;
 
+	// By default, read the entire SRA record
+	slice_index = 0;
+	num_slice = 1;
+
 	verbose = SILENT;
 
 	// Command line arguments
@@ -36,6 +40,8 @@ void SrirachaOptions::load(int argc, char* argv[])
 	// [-v] (increase the verbosity; default is silent)
 	// [--max-results <maximum number of results to show per accession/target>] (default is DEFAULT_MAX_MATCH)
 	// [--retry <maximum number of download atttemps>] (default is 0)
+	// [--slice <slice number [0, N)]>] (no MPI allowed!)
+	// [--of <number of slices, N>] (no MPI allowed!)
 	// Search strategy
 	// [--search-by-align]
 	// [--search-by-kmer] (default)
@@ -61,6 +67,8 @@ void SrirachaOptions::load(int argc, char* argv[])
 		{"vvv", false, &config_opt, 8},
 		{"vvvv", false, &config_opt, 9},
 		{"retry", true, &config_opt, 10},
+		{"slice", true, &config_opt, 11},
+		{"of", true, &config_opt, 12},
 		{0,0,0,0} // Terminate options list
 	};
 
@@ -135,6 +143,18 @@ void SrirachaOptions::load(int argc, char* argv[])
 					break;
 				}
 
+				if(config_opt == 11){ // slice
+
+					slice_index = abs( atoi(optarg) );
+					break;
+				}
+
+				if(config_opt == 12){ // of
+
+					num_slice = abs( atoi(optarg) );
+					break;
+				}
+
 				cerr << "Unknown flag!" << endl;
 				break;
 			case 'a':
@@ -187,6 +207,8 @@ void SrirachaOptions::load(int argc, char* argv[])
 		cerr << "\t[-a <list of SRA accessions in a text file>]" << endl;
 		cerr << "\t[-v (increase the verbosity: silent, tacitern, normal, chatty. Default is silent)]" << endl;
 		cerr << "\t[--retry <maximum number of download atttemps>] (default is 0)" << endl;
+		cerr << "\t[--slice <slice number [0, N)]>] (not compatible with MPI)" << endl;
+		cerr << "\t[--of <number of slices, N>] (not compatible with MPI)" << endl;
 		cerr << "\tSearch strategies" << endl;
 		cerr << "\t\t[--search-by-align]" << endl;
 		cerr << "\t\t\t(Not implemented yet!)" << endl;
@@ -197,7 +219,7 @@ void SrirachaOptions::load(int argc, char* argv[])
 		cerr << "\t\t\t[--read.complexity.min <min read complexity>] (default is " << DEFAULT_MIN_READ_COMPLEXITY << ")" << endl;
 		cerr << "\t\t[--search-by-bloom]" << endl;
 		cerr << "\t\t\t(Not implemented yet!)" << endl;
-		cerr << "\t<SRA accession1> ..." << endl;
+		cerr << "\t<SRA accession or file or dir> ..." << endl;
 		
 		return;
 	}
@@ -270,6 +292,15 @@ void SrirachaOptions::load(int argc, char* argv[])
 		quit = true;
 
 		cerr << "Please specify a valid search strategy" << endl;
+		
+		return;
+	}
+
+	if(slice_index >= num_slice){
+
+		quit = true;
+
+		cerr << "Please specify slice index (--slice) less than the number of slices (--of)" << endl;
 		
 		return;
 	}

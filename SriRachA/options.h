@@ -33,6 +33,8 @@ struct SrirachaOptions
 		VARIABLE(int, search_strategy) \
 		VARIABLE(unsigned int, verbose) \
 		VARIABLE(unsigned int, max_retry) \
+		VARIABLE(unsigned int, slice_index) \
+		VARIABLE(unsigned int, num_slice) \
 		VARIABLE(bool, quit)
 
 	#define VARIABLE(A, B) A B;

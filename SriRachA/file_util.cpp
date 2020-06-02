@@ -49,11 +49,7 @@ bool is_dir(const std::string &m_dirname)
 	}
 	
 	// The path exists, make sure it is a directory
-	if( S_ISDIR(dir_info.st_mode) ){
-		return true;
-	}
-
-	return false;
+	return S_ISDIR(dir_info.st_mode);
 }
 
 bool is_file(const std::string &m_filename)
@@ -65,11 +61,19 @@ bool is_file(const std::string &m_filename)
 	}
 	
 	// The path exists, make sure it is a file
-	if( S_ISREG(file_info.st_mode) ){
-		return true;
-	}
+	return S_ISREG(file_info.st_mode);
+}
 
-	return false;
+bool is_path(const string &m_name)
+{
+	struct stat path_info;
+
+	if(stat(m_name.c_str(), &path_info) != 0){
+		return false;
+	}
+	
+	// The path exists, make sure it is a file
+	return ( S_ISDIR(path_info.st_mode) || S_ISREG(path_info.st_mode) );
 }
 
 size_t file_size(const string &m_filename)
@@ -216,6 +220,40 @@ pair<string /*dir*/, string /*file*/>  split_dir_and_file(const string &m_filena
 	
 	return pair<string, string>( m_filename.substr(0, loc), 
 		m_filename.substr(loc + 1, m_filename.size() - (loc + 1) ) );
+}
+
+string parent_dir(const string &m_filename)
+{
+	return split_dir_and_file(m_filename).first;
+}
+
+// /This/is/an/arbitrary/././example/path/foo.txt
+//                                        ^^^^^^^
+//                                         leaf
+string leaf_path_name(const string &m_path)
+{
+	size_t end = m_path.size();
+
+	if(end == 0){
+		throw __FILE__ ":leaf_path_name: Empty path string (1)";
+	}
+
+	// Skip any terminal path separators
+	while( (end > 0) && (m_path[end - 1] == PATH_SEPARATOR) ){
+		--end;
+	}
+
+	if(end == 0){
+		throw __FILE__ ":leaf_path_name: Empty path string (2)";
+	}
+
+	size_t begin = end - 1;
+
+	while( (begin > 0) && (m_path[begin - 1] != PATH_SEPARATOR) ){
+		--begin;
+	}
+
+	return m_path.substr(begin, end - begin);
 }
 
 // Return true if we were successfull in removing all files and directories, 

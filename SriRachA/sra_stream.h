@@ -16,7 +16,9 @@ typedef enum {
 	SRADownloadAddColumnReadLenError,
 	SRADownloadCursorOpenError,
 	SRADownloadReadFormatError,
-	SRADownloadCreateCursorError
+	SRADownloadCreateCursorError,
+	SRADownloadDirError,
+	SRADownloadFileReadError
 } SRADownloadStatus;
 
 extern const char* SRADownloadErrorStr[];
@@ -33,7 +35,7 @@ struct StreamStats
 	};
 };
 
-SRADownloadStatus sra_stream(const std::string &m_accession, 
+SRADownloadStatus sra_stream(const std::string &m_accession, const int &m_rank, const int &m_numtasks,
 	void per_read_function(const std::string &m_seq, 
 		const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
 	void** m_param, StreamStats* m_stat_ptr = NULL);

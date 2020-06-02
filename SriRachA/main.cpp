@@ -23,6 +23,7 @@
 #include "word.h"
 #include "sort.h"
 #include "sra_stream.h"
+#include "file_util.h"
 
 using namespace std;
 
@@ -42,6 +43,8 @@ string report_run_time();
 SRADownloadStatus search(const string &m_accession, ostream &m_out,
 	const deque< pair< string, deque<Word> > > &m_subject_kmers, 
 	StreamStats &m_info, const SrirachaOptions &m_opt);
+
+string extract_sra_accession(const string &m_input);
 
 int main(int argc, char *argv[])
 {
@@ -70,6 +73,14 @@ int main(int argc, char *argv[])
 
 				cerr << "Currently, SriRachA only supports search by kmer" << endl;
 				opt.quit = true;
+			}
+
+			if( (mpi_numtasks > 1) && (opt.num_slice > 1) ){
+
+				cerr << "Specifying more than slice is not compatible with MPI" << endl;
+
+				opt.num_slice = 1;
+				opt.slice_index = 0;
 			}
 
 			if( !opt.quit && !opt.output_filename.empty() ){
@@ -382,6 +393,7 @@ SRADownloadStatus search(const string &m_accession, ostream &m_out,
 	// Store the SRA return codes as an "int" so that all ranks can
 	// share their values with MPI_Reduce.
 	int ret = SRADownloadSuccess;
+
 	unsigned int attempt = 0;
 
 	// Each rank will attempt to download the data and retry in the event of
@@ -410,7 +422,15 @@ SRADownloadStatus search(const string &m_accession, ostream &m_out,
 						(void*)NULL
 					};
 
-					ret = sra_stream(m_accession, search_by_kmer, param, &m_info);
+					if(m_opt.num_slice > 1){
+						
+						// For single MPI rank runs, the user is allowed to search just a single slice of the
+						// specified SRA record(s)
+						ret = sra_stream(m_accession, m_opt.slice_index, m_opt.num_slice, search_by_kmer, param, &m_info);
+					}
+					else{
+						ret = sra_stream(m_accession, mpi_rank, mpi_numtasks, search_by_kmer, param, &m_info);
+					}
 				}
 				break;
 			case SEARCH_BY_BLOOM:
@@ -532,6 +552,11 @@ SRADownloadStatus search(const string &m_accession, ostream &m_out,
 	// Only rank 0 outputs the results
 	if(mpi_rank == 0){
 
+		// Since the input accession could be in the form of a search path,
+		// we may need to extract the actual accession.
+
+		const string accession = extract_sra_accession(m_accession);
+
 		for(size_t i = 0;i < num_subject;++i){
 
 			const deque<SearchMatch> &ref = results[i];
@@ -541,7 +566,7 @@ SRADownloadStatus search(const string &m_accession, ostream &m_out,
 			// (unless opt.max_num_match == 0)
 			for(deque<SearchMatch>::const_iterator j = ref.begin();j != ref.end();++j){
 
-				m_out << m_accession << '\t' << j->read_index;
+				m_out << accession << '\t' << j->read_index;
 				
 				if(j->read_subindex > 0){
 					m_out << '.' << j->read_subindex;
@@ -554,4 +579,34 @@ SRADownloadStatus search(const string &m_accession, ostream &m_out,
 	}
 
 	return SRADownloadStatus(ret);
+}
+
+string extract_sra_accession(const string &m_input)
+{
+	size_t begin = 0;
+	size_t end = m_input.size();
+
+	// Skip any trailing path separators
+	while( (end > begin) && (m_input[end - 1] == PATH_SEPARATOR) ){
+		--end;
+	}
+
+	if(end == begin){
+		throw __FILE__ ":extract_sra_accession: Unable to parse accession (1)";
+	}
+
+	begin = end;
+
+	while( (begin > 0) && (m_input[begin - 1] != PATH_SEPARATOR) ){
+		--begin;
+	}
+
+	// Remove any file extension (i.e. ".sra")
+	size_t _end = begin + 1;
+
+	while( (_end < end) && !ispunct(m_input[_end]) ){
+		++_end;
+	}
+
+	return m_input.substr(begin, _end - begin);
 }

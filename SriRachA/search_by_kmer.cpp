@@ -79,8 +79,6 @@ void search_by_kmer(const string &m_seq, const unsigned int &m_read_index, const
 		return;
 	}
 
-	const size_t match_threshold = max( size_t(1), size_t(num_unique_kmer * opt_ptr->kmer_match_threshold) );
-
 	const size_t num_subject = subject_kmers_ptr->size();
 
 	for(size_t index = 0;index < num_subject;++index){
@@ -108,24 +106,29 @@ void search_by_kmer(const string &m_seq, const unsigned int &m_read_index, const
 			count += ( ( iter != subject_kmers.end() ) && (*iter == *q) ) ? 1 : 0;
 		}
 	
-		if(count >= match_threshold){
+		const float score = float(count)/num_unique_kmer;
+
+		if(score >= opt_ptr->kmer_match_threshold){
 			
 			deque<SearchMatch> &results = (*results_ptr)[index];
 
-			const float score = float(count)/num_unique_kmer;
+			// If we are using multiple threads to search by kmer, then
+			// we need to protect the results with a critical section.
+			#pragma omp critical (SEARCH_BY_KMER)
+			{
+				results.push_back( SearchMatch(m_read_index, m_read_subindex, score, m_seq) );
 
-			results.push_back( SearchMatch(m_read_index, m_read_subindex, score, m_seq) );
+				if(score == 1.0){
+					++( (*num_perfect_match_ptr)[index] );
+				}
 
-			if(score == 1.0){
-				++( (*num_perfect_match_ptr)[index] );
-			}
+				if( (opt_ptr->max_num_match > 0) && ( results.size() > 10*opt_ptr->max_num_match ) ){
 
-			if( (opt_ptr->max_num_match > 0) && ( results.size() > 10*opt_ptr->max_num_match ) ){
+					// Cull the matches to avoid running out of RAM
+					SORT( results.begin(), results.end() );
 
-				// Cull the matches to avoid running out of RAM
-				SORT( results.begin(), results.end() );
-
-				results.resize(opt_ptr->max_num_match);
+					results.resize(opt_ptr->max_num_match);
+				}
 			}
 		}
 	}

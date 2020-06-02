@@ -1,9 +1,14 @@
 #include "sra_stream.h"
+#include "file_util.h"
 
 #include <iostream>
 
 #include <unistd.h> // For sleep
 #include <time.h> // For nanosleep
+
+#ifdef _OPENMP
+#include <omp.h> // For omp_get_num_threads()
+#endif // _OPENMP
 
 // For the num_gen datastructure and helper functions
 #include <klib/num-gen.h>
@@ -22,14 +27,14 @@
 // For VDatabaseOpenTableRead()
 #include <vdb/table.h>
 
+// For openReadCollection (when reading from a file)
+#include <ncbi-vdb/NGS.hpp>
+
 using namespace std;
 
 // When using the VDB API to read SRA data, this is the maximum number 
 // of retry attemps before giving up
 #define		MAX_RETRY	3
-
-extern int mpi_rank;
-extern int mpi_numtasks;
 
 // Must match the order enum SRADownloadStatus
 const char* SRADownloadErrorStr[] = {
@@ -45,7 +50,9 @@ const char* SRADownloadErrorStr[] = {
 	"SRA Download Add Column Read Len Error",
 	"SRA Download Cursor Open Error",
 	"SRA Download Read Format Error",
-	"SRA Download Create Cursor Error"
+	"SRA Download Create Cursor Error",
+	"SRA Download Dir Error",
+	"SRA Download File Read Error"
 };
 
 #define	KB	1024
@@ -63,21 +70,34 @@ const char* SRADownloadErrorStr[] = {
 
 // Helper functions cribbed from cmn_iter.c
 static bool contains( VNamelist * tables, const char * table );
-pair<uint64_t, uint64_t> assign_read_range(const uint64_t &m_first_read, const uint64_t &m_num_read);
+pair<uint64_t, uint64_t> assign_read_range(const uint64_t &m_first_read, const uint64_t &m_num_read,
+	const int &m_rank, const int &m_numtasks);
 
-SRADownloadStatus stream_sra_db_seq(const VDatabase* db_ptr, 
+SRADownloadStatus stream_sra_db_seq(const VDatabase* db_ptr, const int &m_rank, const int &m_numtasks,
 	void per_read_function(const string &m_seq, const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
 	void* m_param[], StreamStats* m_stat_ptr);
 
-SRADownloadStatus stream_flat_seq(const VTable* tbl_ptr, 
+SRADownloadStatus stream_flat_seq(const VTable* tbl_ptr, const int &m_rank, const int &m_numtasks,
 	void per_read_function(const string &m_seq, const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
 	void* m_param[], StreamStats* m_stat_ptr);
 
-SRADownloadStatus sra_stream(const string &m_accession, 
+SRADownloadStatus stream_file(const string &m_accession, const int &m_rank, const int &m_numtasks,
+	void per_read_function(const string &m_seq, const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
+	void* m_param[], StreamStats* m_stat_ptr);
+
+string path_type_to_str(int m_type);
+
+SRADownloadStatus sra_stream(const string &m_accession, const int &m_rank, const int &m_numtasks,
 	void per_read_function(const string &m_seq, const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
 	void* m_param[], StreamStats* m_stat_ptr /*= NULL*/)
 {
 	SRADownloadStatus ret = SRADownloadSuccess;
+
+	// If m_accession is a valid filesystem path (i.e. a file or a directory), attempt to read the 
+	// SRA data from the filesystem
+	if( is_path(m_accession) ){
+		return stream_file(m_accession, m_rank, m_numtasks, per_read_function, m_param, m_stat_ptr);
+	}
 
 	const VDBManager* mgr = NULL;
 
@@ -88,8 +108,8 @@ SRADownloadStatus sra_stream(const string &m_accession,
 	// On linux, VDBManagerPathType() appears to work just fine. However, on OS X,
 	// when attempting to download an access controlled SRA file (like SRR278685),
 	// VDBManagerPathType() hangs indefinately.
-	int path_type = VDBManagerPathType( mgr, "%s", m_accession.c_str() );;
-	
+	int path_type = VDBManagerPathType( mgr, "%s", m_accession.c_str() ) & ~kptAlias;
+
 	// When many processes are trying to access the same SRA record at the
 	// same time, VDBManagerPathType will sometimes spuriously return kptNotFound.
 	// If this happens, try waiting a fixed amount of time and retrying
@@ -106,7 +126,7 @@ SRADownloadStatus sra_stream(const string &m_accession,
 
 		nanosleep(&delay, NULL);
 
-		path_type = VDBManagerPathType( mgr, "%s", m_accession.c_str() );
+		path_type = VDBManagerPathType( mgr, "%s", m_accession.c_str() ) & ~kptAlias;
 	}
 
 	const VDatabase* db = NULL;
@@ -134,7 +154,7 @@ SRADownloadStatus sra_stream(const string &m_accession,
 
 							// Ignore PRIMARY_ALIGNMENT and SECONDARY_ALIGNMENT tables. All we care about
 							// is sequence data!
-                    		ret = stream_sra_db_seq(db, per_read_function, m_param, m_stat_ptr);
+                    		ret = stream_sra_db_seq(db, m_rank, m_numtasks, per_read_function, m_param, m_stat_ptr);
                 		}
 						else{
 							// Did not find a "SEQUENCE" table!
@@ -173,7 +193,7 @@ SRADownloadStatus sra_stream(const string &m_accession,
 				ret = SRADownloadNetworkFailure;
 			}
 			else{
-				ret = stream_flat_seq(tbl, per_read_function, m_param, m_stat_ptr);
+				ret = stream_flat_seq(tbl, m_rank, m_numtasks, per_read_function, m_param, m_stat_ptr);
 			}
 
 			VTableRelease(tbl);
@@ -198,7 +218,7 @@ static bool contains( VNamelist * tables, const char * table )
     return (VNamelistIndexOf(tables, table, &found) == 0);
 }
 
-SRADownloadStatus stream_sra_db_seq(const VDatabase* db_ptr, 
+SRADownloadStatus stream_sra_db_seq(const VDatabase* db_ptr, const int &m_rank, const int &m_numtasks,
 	void per_read_function(const string &m_seq, const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
 	void* m_param[], StreamStats* m_stat_ptr)
 {
@@ -242,7 +262,8 @@ SRADownloadStatus stream_sra_db_seq(const VDatabase* db_ptr,
 						else{
 
 							// Each MPI rank gets is assigned a non-overlapping chunk of reads
-							const pair<uint64_t, uint64_t> read_range = assign_read_range(read_index, num_read);
+							const pair<uint64_t, uint64_t> read_range = 
+								assign_read_range(read_index, num_read, m_rank, m_numtasks);
 
 							// DEBUG
 							//cerr << "[" << mpi_rank << "] stream_sra_db_seq: [" << read_range.first << ", " << read_range.second << "]" << endl;
@@ -391,7 +412,7 @@ SRADownloadStatus stream_sra_db_seq(const VDatabase* db_ptr,
 	return ret;
 }
 
-SRADownloadStatus stream_flat_seq(const VTable* tbl_ptr, 
+SRADownloadStatus stream_flat_seq(const VTable* tbl_ptr, const int &m_rank, const int &m_numtasks,
 	void per_read_function(const string &m_seq, const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
 	void* m_param[], StreamStats* m_stat_ptr)
 {
@@ -424,7 +445,8 @@ SRADownloadStatus stream_flat_seq(const VTable* tbl_ptr,
 				else{
 
 					// Each MPI rank gets is assigned a non-overlapping chunk of reads
-					const pair<uint64_t, uint64_t> read_range = assign_read_range(read_index, num_read);
+					const pair<uint64_t, uint64_t> read_range = 
+						assign_read_range(read_index, num_read, m_rank, m_numtasks);
 
 					// DEBUG
 					//cerr << "[" << mpi_rank << "] stream_flat_seq: [" << read_range.first << ", " << read_range.second << "]" << endl;
@@ -500,21 +522,198 @@ SRADownloadStatus stream_flat_seq(const VTable* tbl_ptr,
 	return ret;
 }
 
-pair<uint64_t, uint64_t> assign_read_range(const uint64_t &m_first_read, const uint64_t &m_num_read)
+pair<uint64_t, uint64_t> assign_read_range(const uint64_t &m_first_read, const uint64_t &m_num_read,
+	const int &m_rank, const int &m_numtasks)
 {
-	uint64_t chunk = (m_num_read - m_first_read + 1)/mpi_numtasks;
+	uint64_t chunk = (m_num_read - m_first_read + 1)/m_numtasks;
 					
 	// Each rank is assigned an non-overlapping slice of the SRA
 	// file to read. 
-	const uint64_t start_index = m_first_read + chunk*mpi_rank;
+	const uint64_t start_index = m_first_read + chunk*m_rank;
 	
-	if( mpi_rank == (mpi_numtasks - 1) ){
+	if( m_rank == (m_numtasks - 1) ){
 
 		// Read any remainder reads with the last rank
-		chunk += (m_num_read - m_first_read + 1)%mpi_numtasks;
+		chunk += (m_num_read - m_first_read + 1)%m_numtasks;
 	}
 	
 	const uint64_t stop_index = start_index + chunk;
 
 	return make_pair(start_index, stop_index);
+}
+
+string path_type_to_str(int m_type)
+{
+	switch(m_type & ~kptAlias){
+		case kptNotFound:
+			return "kptNotFound";
+		case kptBadPath:
+			return "kptBadPath";
+		case kptFile:
+			return "kptFile";
+		case kptDir:
+			return "kptDir";
+		case kptCharDev:
+			return "kptCharDev";
+		case kptBlockDev:
+			return "kptBlockDev";
+		case kptFIFO:
+			return "kptFIFO";
+		case kptZombieFile:
+			return "kptZombieFile";
+		case kptDataset:
+			return "kptDataset";
+		case kptDatatype:
+			return "kptDatatype";
+		case kptDatabase:
+			return "kptDatabase";
+		case kptTable:
+			return "kptTable";
+		case kptIndex:
+			return "kptIndex";
+		case kptColumn:
+			return "kptColumn";
+		case kptMetadata:
+			return "kptMetadata";
+		case kptPrereleaseTbl:
+			return "kptPrereleaseTbl";
+	};
+
+	return "Unknown path type!";
+}
+
+SRADownloadStatus stream_file(const string &m_accession, const int &m_rank, const int &m_numtasks,
+	void per_read_function(const string &m_seq, const unsigned int &m_read_index, const unsigned int &m_read_subindex, void* m_param[]), 
+	void* m_param[], StreamStats* m_stat_ptr)
+{
+	SRADownloadStatus ret = SRADownloadSuccess;
+	
+	string sra_dir;
+	string sra_file;
+
+	if( is_dir(m_accession) ){
+
+		sra_dir = m_accession;
+
+		// This is the file name that is *local* to sra_dir (since we will chdir to sra_dir)
+		sra_file = leaf_path_name(m_accession) + ".sra";
+	}
+	else{
+
+		sra_dir = parent_dir(m_accession);
+
+		// This is the file name that is local to sra_dir (since we will chdir to sra_dir)
+		sra_file = leaf_path_name(m_accession);
+	}
+
+	// For SRA records with additional information (like reference sequences and
+	// .sra.vdbcache file), we need to be in a directory that is within
+	// two leves of the actual sra file.
+	// For a simple test case:
+	// 	./foo SRR9008316.sra --> success
+	// 	./foo SRR9008316/SRR9008316.sra --> success
+	// 	./foo SRR9008316_run/SRR9008316/SRR9008316.sra --> *failure*
+	//
+	// This behaviour seems like a bug to me, but we can work around it by
+	// extracting the path from each SRA filename and changing the working
+	// directory to this path.
+	
+	char* orig_dir = getcwd(NULL, 0);
+
+	if(orig_dir == NULL){
+		return SRADownloadDirError;
+	}
+
+	if( chdir( sra_dir.c_str() ) != 0){
+		return SRADownloadDirError;
+	}
+
+	try{
+		// Digest the current sequence group. Trial and error testing on beagle.lanl.gov
+		// indicates that 5 reading threads provides the best performance.
+		#pragma omp parallel // num_threads(5)
+		{
+			#ifdef _OPENMP
+			const size_t num_thread = omp_get_num_threads();
+			const size_t tid = omp_get_thread_num();
+			#else
+			const size_t num_thread = 1;
+			const size_t tid = 0;
+			#endif // _OPENMP
+			
+			StreamStats local_stats;
+
+			ngs::ReadCollection run(  ncbi::NGS::openReadCollection(sra_file) );
+			
+			// Note that num_read is the number of either paired or
+			// unpaired reads. For paired reads, this is half the
+			// the number of sequences!
+			const size_t num_read = run.getReadCount(ngs::Read::all);
+			
+			// Each MPI rank gets is assigned a non-overlapping chunk of reads.
+			// The returned range is 1's based (to match the SRA API)
+			const pair<uint64_t, uint64_t> read_range = 
+				assign_read_range(1 /*starting read is 1*/, num_read, m_rank, m_numtasks);
+
+			// For the chunk of reads assigned to this MPI rank, we will *further* divide
+			// the chunk amoung all of the threads on the MPI rank.
+			const size_t num_local_read = read_range.second - read_range.first;
+
+			size_t chunk = max(size_t(1), num_local_read/num_thread);
+										
+			// Each thread is assigned an non-overlapping slice of the SRA
+			// file to read.
+			const size_t start = read_range.first + chunk*tid;
+			
+			if( tid == (num_thread - 1) ){
+
+				// Assign any "remainder" reads to the last thread
+				chunk += num_local_read%num_thread;
+			}
+							
+			ngs::ReadIterator run_iter = 
+				ngs::ReadIterator( run.getReadRange ( start, chunk, ngs::Read::all ) );
+			
+			// Start read counting at zero, since we will be adding this to "start"
+			size_t read_count = 0;
+						
+			while( run_iter.nextRead() ){
+				
+				// Use 1's based sub-read counting
+				size_t sub_read_count = 1;
+
+				while( run_iter.nextFragment() ){
+
+					const string seq = run_iter.getFragmentBases().toString();
+
+					local_stats.num_bases += seq.size();
+					++local_stats.num_reads;
+
+					per_read_function(seq, 
+						start + read_count, sub_read_count, m_param);
+
+					++sub_read_count;
+				}
+
+				++read_count;
+			}
+
+			#pragma omp critical
+			if(m_stat_ptr != NULL){
+
+				m_stat_ptr->num_reads += local_stats.num_reads;
+				m_stat_ptr->num_bases += local_stats.num_bases;
+			}	
+		}
+	}
+	catch(...){
+		return SRADownloadFileReadError;
+	}
+
+	// Return to the original directory after reading each SRA file
+	if(chdir(orig_dir) != 0){
+		return SRADownloadDirError;
+	}
+	
+	return ret;
 }

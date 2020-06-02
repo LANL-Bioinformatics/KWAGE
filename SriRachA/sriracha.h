@@ -6,7 +6,7 @@
 
 #define		MAP		unordered_map
 
-#define		SRIRACHA_VERSION				"0.42"
+#define		SRIRACHA_VERSION				"0.43"
 
 #define		DEFAULT_MIN_READ_LENGTH			0
 #define		MIN_KMER_LEN					3

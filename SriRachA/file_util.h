@@ -194,6 +194,9 @@ struct sort_by_length
 bool make_dir(const std::string &m_dirname);
 bool is_dir(const std::string &m_dirname);
 bool is_file(const std::string &m_filename);
+bool is_path(const std::string &m_name);
+std::string parent_dir(const std::string &m_filename);
+std::string leaf_path_name(const std::string &m_path);
 size_t file_size(const std::string &m_filename);
 bool match_extension(const std::string &m_input, const std::string &m_ext);
 bool find_file_extension(const std::string &m_path, const char** m_ext);
