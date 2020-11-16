@@ -1,28 +1,29 @@
 #ifndef __BIGSI
 #define __BIGSI
 
-#define	BIGSI_VERSION		"0.2"
-#define	DOWNLOAD_VERSION	"0.2"
-#define	BLOOMER_VERSION		"0.3"
-#define	BUILD_DB_VERSION	"0.2"
-#define	CHECK_BLOOM_VERSION	"0.1"
+#define	BIGSI_VERSION		"0.4b"
+#define	INVENTORY_VERSION	"0.7"
+#define	MAESTRO_VERSION		"0.9"
 
 #include <cstdint> // uint32_t
 #include <fstream>
 #include "hash.h"
 
+// Needed to supress compiler wanings on g++
+#include "binary_io.h"
+
 // The currently allowed compression levels
 enum {
 	NO_COMPRESSION,
-	ZLIB_RLE_COMPRESSION
+	RLE_COMPRESSION
 };
 
 // zlib compression parameters
-#define	COMPRESSION_LEVEL		6 // from 1 to 9
+#define	COMPRESSION_LEVEL			6 // from 1 to 9
 #define	COMPRESSION_MEMLEVEL		9 // from 1 to 9
 
-#define	BIGSI_MAGIC_NUMBER		0x20191025
-#define	CURRENT_DBFILE_VERSION		1
+#define	BIGSI_MAGIC_NUMBER			0x20191025
+#define	CURRENT_DBFILE_VERSION		2
 
 // MPI Messages
 #define	INFO_BUFFER			1001
@@ -42,7 +43,8 @@ struct DBFileHeader
 		VARIABLE(uint32_t, log_2_filter_len) \
 		VARIABLE(uint32_t, num_filter) \
 		VARIABLE(HashFunction, hash_func) \
-		VARIABLE(uint32_t, compression)
+		VARIABLE(uint32_t, compression) \
+		VARIABLE(uint64_t, info_start)
 
 	#define VARIABLE(A, B) A B;
 		DBFILEHEADER_MEMBERS

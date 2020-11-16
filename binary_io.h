@@ -33,6 +33,10 @@ void binary_write(std::ostream &m_out, const T &m_obj)
 		":mpi_pack: Non-fundamental or non-enum type passed as template");
 	
 	m_out.write( (char*)&m_obj, sizeof(m_obj) );
+
+	if(!m_out){
+		throw __FILE__ ":binary_write<>: Unable to write simple";
+	}
 }
 
 template <class T>
@@ -43,6 +47,10 @@ void binary_read(std::istream &m_in, T &m_obj)
 		":mpi_unpack: Non-fundamental or non-enum type passed as template");
 	
 	m_in.read( (char*)&m_obj, sizeof(m_obj) );
+
+	if(!m_in){
+		throw __FILE__ ":binary_read<>: Unable to read simple";
+	}
 }
 
 // Specialization for string
@@ -65,10 +73,15 @@ template<>
 template<class T>
 void binary_write(std::ostream &m_out, const std::deque<T> &m_obj)
 {
-	binary_write(m_out, m_obj.size() );
+	try{
+		binary_write(m_out, m_obj.size() );
 
-	for(typename std::deque<T>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
-		binary_write(m_out, *i);
+		for(typename std::deque<T>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
+			binary_write(m_out, *i);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_write<deque>: Unable to write";
 	}
 }
 
@@ -77,12 +90,17 @@ void binary_read(std::istream &m_in, std::deque<T> &m_obj)
 {
 	size_t len;
 	
-	binary_read(m_in, len);
-	
-	m_obj.resize(len);
-	
-	for(size_t i = 0;i < len;++i){
-		binary_read(m_in, m_obj[i]);
+	try{
+		binary_read(m_in, len);
+		
+		m_obj.resize(len);
+		
+		for(size_t i = 0;i < len;++i){
+			binary_read(m_in, m_obj[i]);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_read<deque>: Unable to read";
 	}
 }
 
@@ -93,10 +111,15 @@ void binary_read(std::istream &m_in, std::deque<T> &m_obj)
 template<class T>
 void binary_write(std::ostream &m_out, const std::vector<T> &m_obj)
 {
-	binary_write( m_out, m_obj.size() );
-	
-	for(typename std::vector<T>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
-		binary_write(m_out, *i);
+	try{
+		binary_write( m_out, m_obj.size() );
+		
+		for(typename std::vector<T>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
+			binary_write(m_out, *i);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_write<vector>: Unable to write";
 	}
 }
 
@@ -105,12 +128,17 @@ void binary_read(std::istream &m_in, std::vector<T> &m_obj)
 {
 	size_t len;
 	
-	binary_read(m_in, len);
-	
-	m_obj.resize(len);
-	
-	for(size_t i = 0;i < len;++i){
-		binary_read(m_in, m_obj[i]);
+	try{
+		binary_read(m_in, len);
+		
+		m_obj.resize(len);
+		
+		for(size_t i = 0;i < len;++i){
+			binary_read(m_in, m_obj[i]);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_read<vector>: Unable to read";
 	}
 }
 
@@ -121,15 +149,25 @@ void binary_read(std::istream &m_in, std::vector<T> &m_obj)
 template<class A, class B>
 void binary_write(std::ostream &m_out, const std::pair<A, B> &m_obj)
 {
-	binary_write(m_out, m_obj.first);
-	binary_write(m_out, m_obj.second);
+	try{
+		binary_write(m_out, m_obj.first);
+		binary_write(m_out, m_obj.second);
+	}
+	catch(...){
+		throw __FILE__ ":binary_write<pair>: Unable to write";
+	}
 }
 
 template<class A, class B>
 void binary_read(std::istream &m_in, std::pair<A, B> &m_obj)
-{       
-    binary_read(m_in, m_obj.first);
-	binary_read(m_in, m_obj.second);
+{
+	try{
+    	binary_read(m_in, m_obj.first);
+		binary_read(m_in, m_obj.second);
+	}
+	catch(...){
+		throw __FILE__ ":binary_read<pair>: Unable to read";
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -139,12 +177,17 @@ void binary_read(std::istream &m_in, std::pair<A, B> &m_obj)
 template<class A, class B>
 void binary_write(std::ostream &m_out, const std::unordered_map<A,B> &m_obj)
 {
-	binary_write( m_out, m_obj.size() );
-	
-	for(typename std::unordered_map<A,B>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
+	try{
+		binary_write( m_out, m_obj.size() );
 		
-		binary_write(m_out, i->first);
-		binary_write(m_out, i->second);
+		for(typename std::unordered_map<A,B>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
+			
+			binary_write(m_out, i->first);
+			binary_write(m_out, i->second);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_write<unordered_map>: Unable to write";
 	}
 }
 
@@ -153,18 +196,23 @@ void binary_read(std::istream &m_in, std::unordered_map<A,B> &m_obj)
 {
 	size_t len;
 	
-	binary_read(m_in, len);
+	try{
+		binary_read(m_in, len);
 
-	m_obj.clear();
-	
-	for(size_t i = 0;i < len;++i){
+		m_obj.clear();
 		
-		std::pair<A,B> local;
-		
-		binary_read(m_in, local.first);
-		binary_read(m_in, local.second);
-		
-		m_obj.insert(local);
+		for(size_t i = 0;i < len;++i){
+			
+			std::pair<A,B> local;
+			
+			binary_read(m_in, local.first);
+			binary_read(m_in, local.second);
+			
+			m_obj.insert(local);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_read<unordered_map>: Unable to read";
 	}
 }
 
@@ -174,13 +222,18 @@ void binary_read(std::istream &m_in, std::unordered_map<A,B> &m_obj)
 
 template<class A, class B>
 void binary_write(std::ostream &m_out, const std::unordered_multimap<A, B> &m_obj)
-{	
-	binary_write( m_out, m_obj.size() );
+{
+	try{
+		binary_write( m_out, m_obj.size() );
 
-	for(typename std::unordered_multimap<A, B>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
-		
-		binary_write(m_out, i->first);
-		binary_write(m_out, i->second);
+		for(typename std::unordered_multimap<A, B>::const_iterator i = m_obj.begin();i != m_obj.end();++i){
+			
+			binary_write(m_out, i->first);
+			binary_write(m_out, i->second);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_write<unordered_multimap>: Unable to write";
 	}
 }
 
@@ -189,18 +242,23 @@ void binary_read(std::istream &m_in, std::unordered_multimap<A, B> &m_obj)
 {
 	size_t len;
 	
-	binary_read(m_in, len);
-	
-	m_obj.clear();
-	
-	for(size_t i = 0;i < len;++i){
+	try{
+		binary_read(m_in, len);
 		
-		std::pair<A, B> local;
+		m_obj.clear();
 		
-		binary_read(m_in, local.first);
-		binary_read(m_in, local.second);
-		
-		m_obj.insert(local);
+		for(size_t i = 0;i < len;++i){
+			
+			std::pair<A, B> local;
+			
+			binary_read(m_in, local.first);
+			binary_read(m_in, local.second);
+			
+			m_obj.insert(local);
+		}
+	}
+	catch(...){
+		throw __FILE__ ":binary_read<unordered_multimap>: Unable to read";
 	}
 }
 

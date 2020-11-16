@@ -19,14 +19,12 @@
 #include "output.h"
 #include "parse_sequence.h"
 #include "keys.h"
-#include "slice_z.h"
 
 using namespace std;
 
 // Return true if the specified query matched one or more subject Bloom filters
 bool search(unordered_map< size_t, deque<MatchResult> > &m_search_results, 
 	ifstream &m_fsubject, const string &m_query, const size_t &m_query_id,
-	const vector<unsigned long int> &m_compressed_slice_loc, 
 	const unsigned long int &m_bloom_start, const unsigned long int &m_info_start,
 	const size_t &m_slice_size,
 	const DBFileHeader &m_header,
@@ -77,7 +75,8 @@ int main(int argc, char *argv[])
 		// bit slice buffers.
 		#pragma omp parallel
 		{
-			
+			try{
+
 			// Local copies of the search results to allow individual threads to
 			// to progress asyncronously
 			unordered_map< size_t, deque<MatchResult> > local_file_search_results;
@@ -109,67 +108,9 @@ int main(int argc, char *argv[])
 				const size_t slice_size = header.num_filter/BloomFilter::BITS_PER_BLOCK + 
 					( (header.num_filter%BloomFilter::BITS_PER_BLOCK == 0) ? 0 : 1 );
 
-				const size_t filter_len = header.filter_len();
-				
-				// Is this file compressed?
-				vector<unsigned long int> compressed_slice_loc;
-
-				if(header.compression != NO_COMPRESSION){
-
-					// Read the lengths of the compressed slices
-					unsigned char *slice_len = new unsigned char[filter_len];
-
-					if(slice_len == NULL){
-						throw __FILE__ ":main: Unable to allocate slice length buffer";
-					}
-
-					fsubject.read( (char*)slice_len, filter_len*sizeof(unsigned char) );
-
-					if(!fsubject){
-						throw __FILE__ ":main: Unable to read slice length buffer";
-					}
-
-					// Allocate 1 extra element since we will need both the location of the start
-					// of each compressed slice *and* the length of each compressed slice
-					//
-					// length of slice i = slice_loc[i + 1] - slice_loc[i]
-
-					compressed_slice_loc.resize(filter_len + 1);
-
-					// The bit slices start at the current location in the input file
-					// (after the header and the array of slice lengths).
-					size_t cumulative_loc = fsubject.tellg();
-
-					for(uint32_t i = 0;i < filter_len;++i){
-
-						compressed_slice_loc[i] = cumulative_loc;
-
-						// If slice_len[i] == 0, then the slice was *not* compressed
-						// and its length is the same as the uncompressed slice
-						// (i.e. slice_size)
-						cumulative_loc += (slice_len[i] ? slice_len[i] : slice_size);
-					}
-
-					compressed_slice_loc[filter_len] = cumulative_loc;
-
-					delete [] slice_len;
-				}
-
-				// DEBUG
-				//cerr << "file_version = " << header.version << endl;
-				//cerr << "search threshold = " << opt.threshold << endl;
-				//cerr << "num_hash = " << header.num_hash << endl;
-				//cerr << "kmer_len = " << header.kmer_len << endl;
-				//cerr << "bloom_filter_len = " << header.bloom_filter_len << " bits" << endl;
-				//cerr << "num_filter = " << header.num_filter << endl;
-				//cerr << "slice_size = " << slice_size << " bytes" << endl;
-
-				// Mark the start of the bloom filter data
+				// Mark the start of the bit-sliced bloom filter data
 				const unsigned long int bloom_start = fsubject.tellg();
-				const unsigned long int info_start = 
-					(compressed_slice_loc.empty()  ? 
-						bloom_start + filter_len*slice_size : // Uncompressed
-						compressed_slice_loc.back() ); // Compressed
+				const unsigned long int info_start = header.info_start;
 
 				// Search sequences provided on the command line
 				for(deque<string>::const_iterator query_iter = opt.query_seq.begin();
@@ -177,7 +118,7 @@ int main(int argc, char *argv[])
 
 					search(local_command_line_search_results, fsubject, *query_iter, 
 						query_iter - opt.query_seq.begin(), // The query id
-						compressed_slice_loc, bloom_start, info_start,
+						bloom_start, info_start,
 						slice_size, header,
 						opt);
 				}
@@ -194,7 +135,7 @@ int main(int argc, char *argv[])
 					while(seq_iter){
 						
 						if( search(local_file_search_results, fsubject, seq_iter.get_seq(), query_id,
-							compressed_slice_loc, bloom_start, info_start,
+							bloom_start, info_start,
 							slice_size, header,
 							opt) ){
 
@@ -233,6 +174,16 @@ int main(int argc, char *argv[])
 					
 					file_query_info[i->first] = i->second;
 				}
+			}
+
+			}
+			catch(const char *error){
+				cerr << "Caught the search error: " << error << endl;
+				throw error;
+			}
+			catch(...){
+				cerr << "Caught an unhandled search error" << endl;
+				throw "Unhandled search error";
 			}
 		}
 		
@@ -286,7 +237,7 @@ int main(int argc, char *argv[])
 			stringstream ssin;
 			
 			// Make dummy information for command line sequences
-			ssin << "command line seq " << *i << endl;
+			ssin << "command line seq " << *i;
 			
 			switch(opt.output_format){
 				case SearchOptions::OUTPUT_CSV:
@@ -388,7 +339,6 @@ int main(int argc, char *argv[])
 // false otherwise
 bool search(unordered_map< size_t, deque<MatchResult> > &m_search_results, 
 	ifstream &m_fsubject, const string &m_query, const size_t &m_query_id,
-	const vector<unsigned long int> &m_compressed_slice_loc,
 	const unsigned long int &m_bloom_start, const unsigned long int &m_info_start,
 	const size_t &m_slice_size,
 	const DBFileHeader &m_header,
@@ -401,7 +351,7 @@ bool search(unordered_map< size_t, deque<MatchResult> > &m_search_results,
 	// Version 1: Extract the set of query kmers
 	deque<Word> kmers;
 
-	ForEachDuplexWord(m_query, m_header.kmer_len)
+	ForEachDuplexWord(m_query.c_str(), m_query.c_str() + m_query.size(), m_header.kmer_len)
 
 		if(ValidWord){
 			kmers.push_back(CanonicalWord);
@@ -415,6 +365,11 @@ bool search(unordered_map< size_t, deque<MatchResult> > &m_search_results,
 
 	const unsigned int num_query_kmer = end_kmers - kmers.begin();
 	
+	// The query sequence is too small for the current kmer size
+	if(num_query_kmer == 0){
+		return false;
+	}
+
 	BitVector complete_match_mask;
 	vector<unsigned int> match_count;
 	unsigned int query_threshold = 0;
@@ -441,9 +396,6 @@ bool search(unordered_map< size_t, deque<MatchResult> > &m_search_results,
 	// then matches for the remainder of the kmers
 	deque<Word>::const_iterator mid_kmers = kmers.begin() + (1.0f - m_opt.threshold)*num_query_kmer;
 	
-	// Prepare the decompression engine
-	InflateSlice<MAX_COMPRESSED_BYTES> decompressor;
-	
 	const size_t filter_len = m_header.filter_len();
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -457,41 +409,14 @@ bool search(unordered_map< size_t, deque<MatchResult> > &m_search_results,
 		for(size_t h = 0;h < m_header.num_hash;++h){
 
 			const size_t slice_index = bigsi_hash(*i, m_header.kmer_len, h, 
-				filter_len, m_header.hash_func);
+				m_header.hash_func)%filter_len;
 			
-			if(m_header.compression == NO_COMPRESSION){
+			m_fsubject.seekg(m_bloom_start + slice_index*m_slice_size);
 				
-				m_fsubject.seekg(m_bloom_start + slice_index*m_slice_size);
+			slice.read(m_fsubject);
 				
-				slice.read(m_fsubject);
-				
-				if(!m_fsubject){
-					throw __FILE__":search: Error reading slice from file (1)";
-				}
-			}
-			else{
-				
-				m_fsubject.seekg(m_compressed_slice_loc[slice_index]);
-				
-				// We need to read and inflate the requested bit slice
-				const unsigned char len = m_compressed_slice_loc[slice_index + 1] - 
-					m_compressed_slice_loc[slice_index];
-					
-				if(len == m_slice_size){
-					
-					// This slice is *not* compressed
-					slice.read(m_fsubject);
-					
-					if(!m_fsubject){
-						throw __FILE__":search: Error reading slice from file (2)";
-					}
-				}
-				else{
-					
-					decompressor.inflate(m_fsubject, len);
-
-					slice.read( decompressor.ptr() );
-				}
+			if(!m_fsubject){
+				throw __FILE__":search: Error reading slice from file (1)";
 			}
 
 			kmer_match &= slice;
@@ -517,41 +442,14 @@ bool search(unordered_map< size_t, deque<MatchResult> > &m_search_results,
 		for(size_t h = 0;h < m_header.num_hash;++h){
 
 			const size_t slice_index = bigsi_hash(*i, m_header.kmer_len, h, 
-				filter_len, m_header.hash_func);
+				m_header.hash_func)%filter_len;
 			
-			if(m_header.compression == NO_COMPRESSION){
+			m_fsubject.seekg(m_bloom_start + slice_index*m_slice_size);
+
+			slice.read(m_fsubject);
 			
-				m_fsubject.seekg(m_bloom_start + slice_index*m_slice_size);
-
-				slice.read(m_fsubject);
-				
-				if(!m_fsubject){
-					throw __FILE__":search: Error reading slice from file (2)";
-				}
-			}
-			else{
-				m_fsubject.seekg(m_compressed_slice_loc[slice_index]);
-				
-				// We need to read and inflate the requested bit slice
-				const unsigned char len = m_compressed_slice_loc[slice_index + 1] - 
-					m_compressed_slice_loc[slice_index];
-					
-				if(len == m_slice_size){
-					
-					// This slice is *not* compressed
-					slice.read(m_fsubject);
-					
-					if(!m_fsubject){
-						throw __FILE__":search: Error reading slice from file (2)";
-					}
-				}
-				else{
-
-					// This slice is compressed
-					decompressor.inflate(m_fsubject, len);
-
-					slice.read( decompressor.ptr() );
-				}
+			if(!m_fsubject){
+				throw __FILE__":search: Error reading slice from file (2)";
 			}
 
 			kmer_match &= slice;

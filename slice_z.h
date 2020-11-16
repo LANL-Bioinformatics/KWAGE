@@ -6,7 +6,7 @@
 #include <zlib.h>
 
 #define		MAX_COMPRESSED_BYTES	256 // (i.e. NUM_GROUP_CHUNK/( 8 bits per byte) )
-#define		ZLIB_WINDOW_BITS	-9 // No zlib or gzip header
+#define		ZLIB_WINDOW_BITS		-9 // No zlib or gzip header
 
 template<unsigned int MAX_BUFFER_SIZE>
 class InflateSlice
@@ -22,29 +22,29 @@ class InflateSlice
 
         InflateSlice()
         {
-		engine.zalloc = Z_NULL;
-		engine.zfree = Z_NULL;
-		engine.opaque = Z_NULL;
-		engine.avail_in = 0;
-		engine.next_in = NULL;
-		engine.avail_out = MAX_BUFFER_SIZE;
-		engine.next_out = NULL;
-		
-		z_src_buffer = new unsigned char[MAX_BUFFER_SIZE];
+			engine.zalloc = Z_NULL;
+			engine.zfree = Z_NULL;
+			engine.opaque = Z_NULL;
+			engine.avail_in = 0;
+			engine.next_in = NULL;
+			engine.avail_out = MAX_BUFFER_SIZE;
+			engine.next_out = NULL;
+			
+			z_src_buffer = new unsigned char[MAX_BUFFER_SIZE];
 
-		if(z_src_buffer == NULL){
-			throw __FILE__ ":InflateSlice: Unable to allocate z_src_buffer";
-		};
+			if(z_src_buffer == NULL){
+				throw __FILE__ ":InflateSlice: Unable to allocate z_src_buffer";
+			};
 
-		z_dst_buffer = new unsigned char[MAX_BUFFER_SIZE];
+			z_dst_buffer = new unsigned char[MAX_BUFFER_SIZE];
 
-		if(z_dst_buffer == NULL){
-			throw __FILE__ ":InflateSlice: Unable to allocate z_src_buffer";
-		};
+			if(z_dst_buffer == NULL){
+				throw __FILE__ ":InflateSlice: Unable to allocate z_src_buffer";
+			};
 
-		if( Z_OK != inflateInit2(&engine, ZLIB_WINDOW_BITS) ){
-			throw __FILE__ ":InflateSlice: Error calling inflateInit2";
-		}
+			if( Z_OK != inflateInit2(&engine, ZLIB_WINDOW_BITS) ){
+				throw __FILE__ ":InflateSlice: Error calling inflateInit2";
+			}
         };
 
 	InflateSlice(const InflateSlice &m_rhs)
@@ -66,61 +66,61 @@ class InflateSlice
 	
         ~InflateSlice()
         {
-		if(z_src_buffer != NULL){
+			if(z_src_buffer != NULL){
 
-			delete [] z_src_buffer;
-			z_src_buffer = NULL;
-		}
+				delete [] z_src_buffer;
+				z_src_buffer = NULL;
+			}
 
-		if(z_dst_buffer != NULL){
+			if(z_dst_buffer != NULL){
 
-			delete [] z_dst_buffer;
-			z_dst_buffer = NULL;
-		}
+				delete [] z_dst_buffer;
+				z_dst_buffer = NULL;
+			}
 
-		if( Z_OK != inflateEnd(&engine) ){
-			throw __FILE__ ":~InflateSlice: Error in inflateEnd";
-		}
+			if( Z_OK != inflateEnd(&engine) ){
+				throw __FILE__ ":~InflateSlice: Error in inflateEnd";
+			}
         };
 
-        void inflate(std::ifstream &m_fin, unsigned char m_len)
+        void inflate(std::ifstream &m_fin, unsigned int m_len)
         {
-		m_fin.read( (char*)z_src_buffer, m_len);
+			m_fin.read( (char*)z_src_buffer, m_len);
 
-		if(!m_fin){
-			throw __FILE__":InflateSlice::inflate(fstream): Error reading compressed slice from file";
-		}
+			if(!m_fin){
+				throw __FILE__":InflateSlice::inflate(fstream): Error reading compressed slice from file";
+			}
 
-		engine.next_in = z_src_buffer;
-		engine.avail_in = m_len;
+			engine.next_in = z_src_buffer;
+			engine.avail_in = m_len;
 
-		engine.next_out = z_dst_buffer;
-		engine.avail_out = MAX_COMPRESSED_BYTES;
+			engine.next_out = z_dst_buffer;
+			engine.avail_out = MAX_COMPRESSED_BYTES;
 
-		if( Z_STREAM_END != ::inflate(&engine, Z_FINISH) ){
-			throw __FILE__ ":InflateSlice::inflate(fstream): Error in inflate (1)";
-		}
+			if( Z_STREAM_END != ::inflate(&engine, Z_FINISH) ){
+				throw __FILE__ ":InflateSlice::inflate(fstream): Error in inflate (1)";
+			}
 
-		if( Z_OK != inflateReset(&engine) ){
-			throw __FILE__ ":InflateSlice::inflate(fstream): Error in inflateReset (1)";
-		}
+			if( Z_OK != inflateReset(&engine) ){
+				throw __FILE__ ":InflateSlice::inflate(fstream): Error in inflateReset (1)";
+			}
         };
 
-        void inflate(unsigned char* m_buffer, unsigned char m_len)
+        void inflate(unsigned char* m_buffer, unsigned int m_len)
         {
-		engine.next_in = m_buffer;
-		engine.avail_in = m_len;
+			engine.next_in = m_buffer;
+			engine.avail_in = m_len;
 
-		engine.next_out = z_dst_buffer;
-		engine.avail_out = MAX_COMPRESSED_BYTES;
+			engine.next_out = z_dst_buffer;
+			engine.avail_out = MAX_COMPRESSED_BYTES;
 
-		if( Z_STREAM_END != ::inflate(&engine, Z_FINISH) ){
-			throw __FILE__ ":InflateSlice::inflate(unsigned char*): Error in inflate (1)";
-		}
+			if( Z_STREAM_END != ::inflate(&engine, Z_FINISH) ){
+				throw __FILE__ ":InflateSlice::inflate(unsigned char*): Error in inflate (1)";
+			}
 
-		if( Z_OK != inflateReset(&engine) ){
-			throw __FILE__ ":InflateSlice::inflate(unsigned char*): Error in inflateReset (1)";
-		}
+			if( Z_OK != inflateReset(&engine) ){
+				throw __FILE__ ":InflateSlice::inflate(unsigned char*): Error in inflateReset (1)";
+			}
         };
 
         unsigned char* ptr() const
@@ -159,7 +159,14 @@ class CompressSlice
 
     public:
 
-        CompressSlice(const int &m_level = 6, const int &m_memLevel = 9)
+		// Smaller value is better
+		// Z_RLE -> 0.757901
+		// Z_FILTERED -> 0.763826
+		// Z_HUFFMAN_ONLY -> 0.785642
+		// Z_FIXED -> 0.752979
+		// Z_DEFAULT_STRATEGY -> 0.748315 <-- best
+		
+        CompressSlice(const int &m_level = 9, const int &m_memLevel = 9)
         {
             engine.zalloc = Z_NULL;
             engine.zfree = Z_NULL;
@@ -167,8 +174,11 @@ class CompressSlice
             engine.avail_in = 0;
             engine.next_in = NULL;
             engine.avail_out = MAX_BUFFER_SIZE;
-	    engine.next_out = NULL;
+			engine.next_out = NULL;
 
+			// Setting the data type to Z_BINARY has no apparent effect!
+            //engine.data_type = Z_BINARY;
+			
             z_buffer = new unsigned char[MAX_BUFFER_SIZE];
 
             if(z_buffer == NULL){
@@ -180,7 +190,7 @@ class CompressSlice
                 Z_DEFLATED,
                 ZLIB_WINDOW_BITS, 
                 m_memLevel, 
-                Z_RLE) ){ // Only Z_RLE is supported for now
+                Z_DEFAULT_STRATEGY/*Z_RLE*/) ){ // Only Z_RLE is supported for now
 
                 throw __FILE__ ":CompressSlice: Error calling deflateInit2";
             }
@@ -197,47 +207,52 @@ class CompressSlice
 		*this = m_rhs;
 	};
 	
-        ~CompressSlice()
-        {
-            if(z_buffer != NULL){
+	~CompressSlice()
+	{
+		if(z_buffer != NULL){
 
-                delete [] z_buffer;
-                z_buffer = NULL;
-            }
+			delete [] z_buffer;
+			z_buffer = NULL;
+		}
 
-            // Don't check the return value of deflateEnd, since
-            // we may have discarded some output when choosing not
-            // to use compression.
-            deflateEnd(&engine);
-        };
+		// Don't check the return value of deflateEnd, since
+		// we may have discarded some output when choosing not
+		// to use compression.
+		deflateEnd(&engine);
+	};
 
-        unsigned char* ptr() const
-        {
-            return z_buffer;
-        };
+	unsigned char* ptr() const
+	{
+		return z_buffer;
+	};
 
-        inline unsigned int size() const
-        {
-            return MAX_BUFFER_SIZE - engine.avail_out;
-        };
+	inline unsigned int size() const
+	{
+		return MAX_BUFFER_SIZE - engine.avail_out;
+	};
 
-        inline bool compress(unsigned char* m_ptr, unsigned char m_len)
-        {
-            engine.avail_in = m_len;
-            engine.next_in = m_ptr;
+	inline bool compress(unsigned char* m_ptr, unsigned int m_len,
+		const unsigned char* m_dictionary = NULL, const unsigned int &m_dictionary_len = 0)
+	{
+		engine.avail_in = m_len;
+		engine.next_in = m_ptr;
 
-            engine.avail_out = MAX_BUFFER_SIZE;
-            engine.next_out = z_buffer;
+		engine.avail_out = MAX_BUFFER_SIZE;
+		engine.next_out = z_buffer;
 
-            const int zlib_ret = deflate(&engine, Z_FINISH);
+		if(m_dictionary != Z_NULL){
+			deflateSetDictionary(&engine, m_dictionary, m_dictionary_len);
+		}
+		
+		const int zlib_ret = deflate(&engine, Z_FINISH);
 
-            if( Z_OK != deflateReset(&engine) ){
-                throw __FILE__ ":CompressSlice::compress: Error in deflateReset";
-            }
+		if( Z_OK != deflateReset(&engine) ){
+			throw __FILE__ ":CompressSlice::compress: Error in deflateReset";
+		}
 
-            // Were we able to compresss?
-            return ( (Z_STREAM_END == zlib_ret) && (size() < m_len) );
-        };
+		// Were we able to compresss?
+		return ( (Z_STREAM_END == zlib_ret) && (size() < m_len) );
+	};
 	
 	CompressSlice& operator=(const CompressSlice &m_rhs)
 	{

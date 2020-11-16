@@ -8,6 +8,7 @@
 #include <string>
 #include <string.h> // memcpy
 #include <unordered_map>
+#include <unordered_set>
 
 // Forward function definitions for containers (needed to be able to transport nested C++ structures):
 template<class T> size_t mpi_size(const std::deque<T> &m_obj);

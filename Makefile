@@ -1,76 +1,89 @@
-BUILD_OBJS = options.o ifind.o hash.o mpi_util.o file_util.o \
-	update.o bloom.o database.o binary_io.o date.o
+OBJS = maestro_main.o worker_main.o mpi_util.o options.o string_conversion.o \
+	file_util.o hash.o ifind.o binary_io.o sra_accession.o build_db.o \
+	make_bloom.o word.o bloom.o date.o mem_usage.o file_io.o sra_meta.o
 
-BIGSI_OBJS = options.o ifind.o hash.o word.o mpi_util.o file_util.o \
-	update.o bloom.o database.o binary_io.o parse_sequence.o date.o
+INVENTORY_OBJS = options.o ifind.o hash.o file_util.o parse_tar.o binary_io.o \
+	split.o date.o string_conversion.o sra_accession.o bloom.o
 
-BLOOMER_OBJS = options.o ifind.o hash.o word.o mpi_util.o file_util.o \
-	bloom.o binary_io.o date.o
-	
-DOWNLOAD_OBJS = options.o ifind.o hash.o file_util.o parse_tar.o binary_io.o \
-	date.o split.o
+SEARCH_OBJS = parse_sequence.o bloom.o word.o options.o ifind.o hash.o \
+	file_util.o binary_io.o date.o string_conversion.o sra_accession.o
 
-CHECK_OBJS = bloom.o file_util.o ifind.o binary_io.o date.o
-
-DUMP_OBJS = binary_io.o date.o
+DATABASE_OBJS = file_io.o binary_io.o sra_accession.o file_util.o ifind.o
 
 CC = mpic++
 
-# The profile flag is only needed for development
-PROFILE = #-pg
+PROFILE = -g
+OPENMP = #-Xpreprocessor -fopenmp
+FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -mavx2 -std=c++11
 
-OPENMP = -fopenmp
-FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -std=c++0x
+INC = -I. \
+	-I$(HOME)/src/BIGSI/SRA/include \
+	-I$(HOME)/src/BIGSI/SRA/ncbi-vdb/interfaces \
+	-I$(HOME)/llvm-project/build-openmp/runtime/src
 
-INC = -I. -I$(HOME)/zlib/include
-	
-LIBS = -lm $(HOME)/zlib/lib/libz.a
+OMP_LIBS = #-L$(HOME)/llvm-project/build-openmp/runtime/src -lomp
 
-# Edit the SRA_LIB_PATH variable to point to the directory on your system that contains
-# the SRA library files
-SRA_LIB_PATH = $(HOME)/src/BIGSI/SRA/lib64
-
-# Edit the SRA_INCLUDE_PATH variable to point to the directory on your system that contains
-# the SRA include files
-SRA_INCLUDE_PATH = $(HOME)/src/BIGSI/SRA/include
-
-# The SRA libraries are *only* needed by the bloomer program to allow
-# direct parsing of *.sra files
-SRA_LIBS = -L$(SRA_LIB_PATH) \
+LIBS = -lm -lz \
+	-L$(HOME)/src/BIGSI/SRA/lib64 \
 	-lncbi-ngs-c++       \
 	-lngs-c++            \
 	-lncbi-vdb-static    \
 	-ldl
-	
-.SUFFIXES : .o .cpp
+
+
+.SUFFIXES : .o .cpp .c
 .cpp.o:
 	$(CC) $(FLAGS) $(INC) -c $<
+
+all: sra_inventory maestro sra_diff inventory_dump dump_db dump_bloom bigsi++ sra_dump \
+	bloom_test bff bloom_diff manual_db merge_db compress_db
 	
-all: build_db bigsi++ sra_download bloomer checkbloom dump_db
+maestro : $(OBJS) maestro.o
+	$(CC) $(PROFILE) -o maestro $(OBJS) maestro.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-build_db : $(BUILD_OBJS) build_db.o
-	$(CC) $(PROFILE) -o build_db $(BUILD_OBJS) build_db.o $(LIBS) $(OPENMP)
+bff : $(OBJS) bff.o
+	$(CC) $(PROFILE) -o bff $(OBJS) bff.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-bigsi++ : $(BIGSI_OBJS) bigsi++.o
-	$(CC) $(PROFILE) -o bigsi++ $(BIGSI_OBJS) bigsi++.o $(LIBS) $(OPENMP)
+bigsi++ : $(SEARCH_OBJS) bigsi++.o
+	$(CC) $(PROFILE) -o bigsi++ $(SEARCH_OBJS) bigsi++.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-# A special rule to compile bloomer.cpp (which needs the SRA include files)
-bloomer.o : bloomer.cpp
-	$(CC) $(FLAGS) $(INC) -I$(SRA_INCLUDE_PATH) -c $<
+sra_inventory: $(INVENTORY_OBJS) sra_inventory.o
+	$(CC) $(PROFILE) -o sra_inventory $(INVENTORY_OBJS) sra_inventory.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-# Note that the bloomer program requires the SRA libraries to enable the direct
-# parsing of *.sra files
-bloomer : $(BLOOMER_OBJS) bloomer.o
-	$(CC) $(PROFILE) -o bloomer $(BLOOMER_OBJS) bloomer.o $(LIBS) $(SRA_LIBS) $(OPENMP)
+inventory_dump: $(INVENTORY_OBJS) inventory_dump.o
+	$(CC) $(PROFILE) -o inventory_dump $(INVENTORY_OBJS) inventory_dump.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-checkbloom : $(CHECK_OBJS) checkbloom.o
-	$(CC) $(PROFILE) -o checkbloom  $(CHECK_OBJS) checkbloom.o $(LIBS) $(OPENMP)
-	
-sra_download: $(DOWNLOAD_OBJS) sra_download.o
-	$(CC) $(PROFILE) -o sra_download $(DOWNLOAD_OBJS) sra_download.o $(LIBS) $(OPENMP)
+sra_dump: sra_dump.o mem_usage.o string_conversion.o
+	$(CC) $(PROFILE) -o sra_dump sra_dump.o mem_usage.o string_conversion.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-dump_db: $(DUMP_OBJS) dump_db.o
-	$(CC) $(PROFILE) -o dump_db $(DUMP_OBJS) dump_db.o $(LIBS) $(OPENMP)
+bloom_test: $(SEARCH_OBJS) bloom_test.o
+	$(CC) $(PROFILE) -o bloom_test $(SEARCH_OBJS) bloom_test.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+dump_db: $(INVENTORY_OBJS) dump_db.o
+	$(CC) $(PROFILE) -o dump_db $(INVENTORY_OBJS) dump_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+merge_db: $(DATABASE_OBJS) merge_db.o
+	$(CC) $(PROFILE) -o merge_db $(DATABASE_OBJS) merge_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+compress_db: $(DATABASE_OBJS) compress_db.o
+	$(CC) $(PROFILE) -o compress_db $(DATABASE_OBJS) compress_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+manual_db: $(DATABASE_OBJS) manual_db.o
+	$(CC) $(PROFILE) -o manual_db $(DATABASE_OBJS) manual_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+db_debug: $(INVENTORY_OBJS) db_debug.o build_db.o
+	$(CC) $(PROFILE) -o db_debug $(INVENTORY_OBJS) db_debug.o build_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+dump_bloom: $(INVENTORY_OBJS) dump_bloom.o
+	$(CC) $(PROFILE) -o dump_bloom $(INVENTORY_OBJS) dump_bloom.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+sra_diff: $(INVENTORY_OBJS) sra_diff.o
+	$(CC) $(PROFILE) -o sra_diff $(INVENTORY_OBJS) sra_diff.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+bloom_diff: $(INVENTORY_OBJS) bloom_diff.o
+	$(CC) $(PROFILE) -o bloom_diff $(INVENTORY_OBJS) bloom_diff.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
 clean:
 	-rm -f *.o
+
+

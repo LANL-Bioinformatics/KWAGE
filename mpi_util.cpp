@@ -1,6 +1,7 @@
 #include "mpi_util.h"
 #include "options.h"
 #include "bloom.h"
+#include "maestro.h"
 #include <string.h>
 
 using namespace std;
@@ -70,43 +71,6 @@ unsigned char* mpi_unpack<__uint128_t>(unsigned char* m_ptr, __uint128_t &m_obj)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-// Specialization for BuildOptions
-/////////////////////////////////////////////////////////////////////////////////////////
-
-template<> 
-size_t mpi_size(const BuildOptions &m_obj)
-{
-	size_t ret = 0;
-
-	#define VARIABLE(A, B) ret += mpi_size(m_obj.B);
-		BUILD_OPTION_MEMBERS
-	#undef VARIABLE
-
-	return ret;	
-};
-
-template<> 
-unsigned char* mpi_unpack(unsigned char* m_ptr, BuildOptions &m_obj)
-{
-	#define VARIABLE(A, B) m_ptr = mpi_unpack(m_ptr, m_obj.B);
-		BUILD_OPTION_MEMBERS
-        #undef VARIABLE
-	
-	return m_ptr;
-}
-
-template<> 
-unsigned char* mpi_pack(unsigned char* m_ptr, const BuildOptions &m_obj)
-{
-
-	#define VARIABLE(A, B) m_ptr = mpi_pack(m_ptr, m_obj.B);
-		BUILD_OPTION_MEMBERS
-	#undef VARIABLE
-
-	return m_ptr;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////
 // Specialization for Date
 /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -144,37 +108,74 @@ unsigned char* mpi_pack(unsigned char* m_ptr, const Date &m_obj)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-// Specialization for BloomerOptions
+// Specialization for MaestoOptions
 /////////////////////////////////////////////////////////////////////////////////////////
 
 template<> 
-size_t mpi_size(const BloomerOptions &m_obj)
+size_t mpi_size(const MaestroOptions &m_obj)
 {
 	size_t ret = 0;
 
 	#define VARIABLE(A, B) ret += mpi_size(m_obj.B);
-		BLOOMER_OPTION_MEMBERS
+		MAESTRO_OPTION_MEMBERS
 	#undef VARIABLE
 
 	return ret;	
 };
 
 template<> 
-unsigned char* mpi_unpack(unsigned char* m_ptr, BloomerOptions &m_obj)
+unsigned char* mpi_unpack(unsigned char* m_ptr, MaestroOptions &m_obj)
 {
 	#define VARIABLE(A, B) m_ptr = mpi_unpack(m_ptr, m_obj.B);
-		BLOOMER_OPTION_MEMBERS
+		MAESTRO_OPTION_MEMBERS
         #undef VARIABLE
 	
 	return m_ptr;
 }
 
 template<> 
-unsigned char* mpi_pack(unsigned char* m_ptr, const BloomerOptions &m_obj)
+unsigned char* mpi_pack(unsigned char* m_ptr, const MaestroOptions &m_obj)
 {
 
 	#define VARIABLE(A, B) m_ptr = mpi_pack(m_ptr, m_obj.B);
-		BLOOMER_OPTION_MEMBERS
+		MAESTRO_OPTION_MEMBERS
+	#undef VARIABLE
+
+	return m_ptr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Specialization for BloomProgress
+/////////////////////////////////////////////////////////////////////////////////////////
+
+template<> 
+size_t mpi_size(const BloomProgress &m_obj)
+{
+	size_t ret = 0;
+
+	#define VARIABLE(A, B) ret += mpi_size(m_obj.B);
+		BLOOM_PROGRESS_MEMBERS
+	#undef VARIABLE
+
+	return ret;	
+};
+
+template<> 
+unsigned char* mpi_unpack(unsigned char* m_ptr, BloomProgress &m_obj)
+{
+	#define VARIABLE(A, B) m_ptr = mpi_unpack(m_ptr, m_obj.B);
+		BLOOM_PROGRESS_MEMBERS
+        #undef VARIABLE
+	
+	return m_ptr;
+}
+
+template<> 
+unsigned char* mpi_pack(unsigned char* m_ptr, const BloomProgress &m_obj)
+{
+
+	#define VARIABLE(A, B) m_ptr = mpi_pack(m_ptr, m_obj.B);
+		BLOOM_PROGRESS_MEMBERS
 	#undef VARIABLE
 
 	return m_ptr;
@@ -247,39 +248,6 @@ unsigned char* mpi_pack(unsigned char* m_ptr, const BloomFilter &m_obj)
 	m_ptr = mpi_pack(m_ptr, m_obj.param);
 	m_ptr = mpi_pack(m_ptr, m_obj.bloom_crc32);
 	m_ptr = mpi_pack(m_ptr, m_obj.info);
-	m_ptr = mpi_pack<BitVector>(m_ptr, m_obj);
-	
-	return m_ptr;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////
-// Specialization for SubFilter
-/////////////////////////////////////////////////////////////////////////////////////////
-
-template<> 
-size_t mpi_size(const SubFilter &m_obj)
-{
-	return mpi_size(m_obj.file_index) + mpi_size(m_obj.src_loc) + mpi_size(m_obj.dst_loc) + 
-		mpi_size<BitVector>(m_obj);
-};
-
-template<> 
-unsigned char* mpi_unpack(unsigned char* m_ptr, SubFilter &m_obj)
-{
-	m_ptr = mpi_unpack(m_ptr, m_obj.file_index);
-	m_ptr = mpi_unpack(m_ptr, m_obj.src_loc);
-	m_ptr = mpi_unpack(m_ptr, m_obj.dst_loc);
-	m_ptr = mpi_unpack<BitVector>(m_ptr, m_obj);
-	
-	return m_ptr;
-}
-
-template<> 
-unsigned char* mpi_pack(unsigned char* m_ptr, const SubFilter &m_obj)
-{
-	m_ptr = mpi_pack(m_ptr, m_obj.file_index);
-	m_ptr = mpi_pack(m_ptr, m_obj.src_loc);
-	m_ptr = mpi_pack(m_ptr, m_obj.dst_loc);
 	m_ptr = mpi_pack<BitVector>(m_ptr, m_obj);
 	
 	return m_ptr;

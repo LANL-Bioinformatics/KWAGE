@@ -1,7 +1,7 @@
 #include "parse_tar.h"
 #include <string.h>
 #include <iostream>
-#include <vector>
+#include <deque>
 
 using namespace std;
 
@@ -32,14 +32,13 @@ void TarIterator::next()
 
 	if(bytes_to_next_header == 0){
 
-		
 		// Skip any padding bytes
 		if(bytes_to_pad > 0){
 
 			char *temp = new char [bytes_to_pad];
 
 			if(temp == NULL){
-				throw __FILE__ ":: Unabel to allocate temp buffer for skipping pad";
+				throw __FILE__ ":TarIterator: Unable to allocate temp buffer for skipping pad";
 			}
 
 			const int zret = gzread(fin, temp, bytes_to_pad);
@@ -111,49 +110,38 @@ void TarIterator::next()
 		// the effect of skipping zero length entries (like directories).
 		next();
 	}
-    	else{
+    else{
     
-		vector<char> local;
-		const size_t buffer_len = 2048;
-		char *temp = new char[buffer_len];
-
-		if(temp == NULL){
-			throw __FILE__ ":TarIterator::next: Unable to allocate temp buffer";
-		}
-
-		local.reserve(buffer_len);
+		deque<char> local;
 		
-		while(true){
+		// A previous version of TarCat used gzgets(). However, this function can be derailed when
+		// it encounters non-ASCII characters in a file (perhaps due to a corrupted file).
 
-			if(gzgets(fin, temp, buffer_len) == NULL){
-				throw __FILE__ ":TarIterator::next: Unexpected end of file";
+		// Limit the number of bytes read to the smaller of bytes_to_next_header + 1 (for the '\0')
+		// and buffer_len. This required to handle files that are missing the '\n' on the last line.
+		// Without a '\n', the gzgets() will read into the next record.
+		//if(gzgets( fin, temp, min(bytes_to_next_header + 1, buffer_len) ) == NULL){
+		//	throw __FILE__ ":TarIterator::next: Unexpected end of file";
+		//}
+
+		while(bytes_to_next_header > 0){
+			
+			const char c = gzgetc(fin);
+
+			if(c == -1){
+				throw __FILE__ ":TarIterator::next: Error reading byte!";
 			}
 
-			const size_t len = strlen(temp);
+			--bytes_to_next_header;
 
-			if(len > bytes_to_next_header){
-				throw __FILE__ ":TarIterator::next: Missing end of line delimeter";
-			}
-
-			bytes_to_next_header -= len;
-
-			for(size_t i = 0;i < len;++i){
-
-				// Don't include end of line symbols in the returned string
-				if( (temp[i] != '\r') && (temp[i] != '\n') ){
-					local.push_back(temp[i]);
-				}
-			}
-
-			if( len != (buffer_len - 1) ){
+			if(c == '\n'){
 				break;
 			}
-		}
 
-		if(temp != NULL){
-
-			delete [] temp;
-			temp = NULL;
+			// Do not save DOS carriage return symbols
+			if(c != '\r'){
+				local.push_back(c);
+			}
 		}
 
 		buffer.assign( local.begin(), local.end() );

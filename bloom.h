@@ -12,12 +12,20 @@
 #include "date.h"
 #include "hash.h"
 #include "mpi_util.h"
+#include "sra_accession.h"
 
-#define		MAP				std::unordered_map
-#define		MULTIMAP			std::unordered_multimap
+#define		MAP						std::unordered_map
+#define		MULTIMAP				std::unordered_multimap
 
 #define		MIN_NUM_HASH			1
 #define		MAX_NUM_HASH			5
+
+// An 8 bit value that indicates that a Bloom filter is in the process of being written
+// (and is currently incomplete)
+#define		BLOOM_MAGIC_IN_PROGRESS		0x00
+
+// An 8 bit value that indicates that a Bloom filter has been completely written
+#define		BLOOM_MAGIC_COMPLETE		0xFF
 
 // We need to protect any commas that appear in template variables
 // if we are going to combine them with X Macros
@@ -36,7 +44,7 @@ class BitVector
 	private:
 				
 		BLOCK* buffer;
-		uint32_t num_bits;
+		uint64_t num_bits;
 	
 	public:
 		BitVector() : 
@@ -44,7 +52,7 @@ class BitVector
 		{
 		};
 		
-		BitVector(const uint32_t &m_num_bits) : 
+		BitVector(const uint64_t &m_num_bits) : 
 			num_bits(m_num_bits)
 		{
 			buffer = NULL;
@@ -59,6 +67,25 @@ class BitVector
 			}
 		};
 		
+		void attach_buffer(BLOCK* m_buffer, const uint64_t &m_num_bits)
+		{
+			// Free any existing memory associated with this BitVector
+			clear();
+
+			buffer = m_buffer;
+			num_bits = m_num_bits;
+		};
+
+		BLOCK* detach_buffer()
+		{
+			BLOCK* ret = buffer;
+
+			buffer = NULL;
+			num_bits = 0;
+			
+			return ret;
+		};
+
 		~BitVector()
 		{
 			clear();
@@ -78,12 +105,12 @@ class BitVector
 			}
 		};
 		
-		inline uint32_t get_num_bits() const
+		inline uint64_t get_num_bits() const
 		{
 			return num_bits;
 		};
 		
-		inline uint32_t num_block() const
+		inline uint64_t num_block() const
 		{
 			return num_bits/BITS_PER_BLOCK + ( (num_bits%BITS_PER_BLOCK) > 0 ? 1 : 0);
 		};
@@ -126,7 +153,7 @@ class BitVector
 			// Within a block, bits are packed from high to low:
 			// |76543210|76543210|76543210|76543210|76543210|76543210|...
 			// |Block 0 |Block 1 |Block 2 |Block 3 |Block 4 |Block 5 |..
-			buffer[m_index/BITS_PER_BLOCK] |= BLOCK(1) << m_index%BITS_PER_BLOCK;			
+			buffer[m_index/BITS_PER_BLOCK] |= BLOCK(1) << m_index%BITS_PER_BLOCK;
 		};
 		
 		inline void unset_bit(const size_t &m_index)
@@ -201,7 +228,7 @@ class BitVector
 			}
 			
 			// num_bits == m_rhs.num_bits
-			for(uint32_t i = 0;i < num_block();++i){
+			for(uint64_t i = 0;i < num_block();++i){
 				buffer[i] |= m_rhs.buffer[i];
 			}
 			
@@ -221,7 +248,7 @@ class BitVector
 			}
 			
 			// num_bits == m_rhs.num_bits
-			for(uint32_t i = 0;i < num_block();++i){
+			for(uint64_t i = 0;i < num_block();++i){
 				buffer[i] &= m_rhs.buffer[i];
 			}
 			
@@ -247,12 +274,12 @@ class BitVector
 				m_count.resize(num_bits, 0);
 			}
 			
-			const uint32_t last_block = num_block() - 1;
+			const uint64_t last_block = num_block() - 1;
 			
 			// Within a block, bits are packed from high to low:
 			// |76543210|76543210|76543210|76543210|76543210|76543210|...
 			// |Block 0 |Block 1 |Block 2 |Block 3 |Block 4 |Block 5 |..
-			for(uint32_t i = 0;i < last_block;++i){
+			for(uint64_t i = 0;i < last_block;++i){
 				
 				// We only need to increment the count of a block has
 				// one or more non-zero bits
@@ -261,7 +288,7 @@ class BitVector
 					std::vector<unsigned int>::iterator iter = 
 						m_count.begin() + i*BITS_PER_BLOCK;
 					
-					for(uint32_t j = 0;j < BITS_PER_BLOCK;++j, ++iter){
+					for(uint64_t j = 0;j < BITS_PER_BLOCK;++j, ++iter){
 						*iter += (buffer[i] >> j) & 1;
 					}
 				}
@@ -274,7 +301,7 @@ class BitVector
 					m_count.begin() + last_block*BITS_PER_BLOCK;
 				
 				// Stop checking bits when we have tested the last valid element in m_count
-				for(uint32_t j = 0;(j < BITS_PER_BLOCK) && ( iter != m_count.end() );
+				for(uint64_t j = 0;(j < BITS_PER_BLOCK) && ( iter != m_count.end() );
 					++j, ++iter){
 					
 					*iter += (buffer[last_block] >> j) & 1;
@@ -312,7 +339,7 @@ class BitVector
 			return false;
 		};
 		
-		inline void assign_bits(const uint32_t &m_num_bits, const BitVector &m_src)
+		inline void assign_bits(const uint64_t &m_num_bits, const BitVector &m_src)
 		{
 			clear();
 			
@@ -328,7 +355,7 @@ class BitVector
 				throw __FILE__ ":BitVector::assign_bits: |dst| > |src|";
 			}
 			
-			const uint32_t last_block =  num_block() - 1;
+			const uint64_t last_block =  num_block() - 1;
 			
 			memcpy( buffer, m_src.buffer, last_block);
 			
@@ -356,17 +383,17 @@ class BitVector
 			size_t ret = 0;
 			
 			// For efficient bit counting, use the __builtin_popcountl intrinsic function
-			const uint32_t len = ( (num_block() - 1)*sizeof(BLOCK) )/sizeof(unsigned long int);
+			const uint64_t len = ( (num_block() - 1)*sizeof(BLOCK) )/sizeof(unsigned long int);
 			
 			unsigned long int *ptr = (unsigned long int*)buffer;
 			
-			for(uint32_t i = 0;i < len;++i, ++ptr){
+			for(uint64_t i = 0;i < len;++i, ++ptr){
 				ret += __builtin_popcountl(*ptr);
 			}
 			
-			const uint32_t remainder_bits_begin = len*sizeof(unsigned long int)*8;
+			const uint64_t remainder_bits_begin = len*sizeof(unsigned long int)*8;
 			
-			for(uint32_t i = remainder_bits_begin;i < num_bits;++i){
+			for(uint64_t i = remainder_bits_begin;i < num_bits;++i){
 				ret += (get_bit(i) ? 1 : 0);
 			}
 			
@@ -430,8 +457,8 @@ struct FilterInfo
 	// Use X Macros (https://en.wikipedia.org/wiki/X_Macro) to 
 	// ensure that structure variables are correctly serialized
 	#define FILTER_INFO_MEMBERS \
-		VARIABLE(std::string, run_accession) \
-		VARIABLE(std::string, experiment_accession) \
+		VARIABLE(SraAccession, run_accession) \
+		VARIABLE(SraAccession, experiment_accession) \
 		VARIABLE(std::string, experiment_title) \
 		VARIABLE(std::string, experiment_design_description) \
 		VARIABLE(std::string, experiment_library_name) \
@@ -439,20 +466,44 @@ struct FilterInfo
 		VARIABLE(std::string, experiment_library_source) \
 		VARIABLE(std::string, experiment_library_selection) \
 		VARIABLE(std::string, experiment_instrument_model) \
-		VARIABLE(std::string, sample_accession) \
+		VARIABLE(SraAccession, sample_accession) \
 		VARIABLE(std::string, sample_taxa) \
-		VARIABLE(SINGLE_ARG(MULTIMAP<std::string, std::string>), sample_attributes) \
-		VARIABLE(std::string, study_accession) \
+		VARIABLE(SINGLE_ARG(MAP<std::string, std::string>), sample_attributes) \
+		VARIABLE(SraAccession, study_accession) \
 		VARIABLE(std::string, study_title) \
 		VARIABLE(std::string, study_abstract) \
+		VARIABLE(size_t, number_of_spots) \
+		VARIABLE(size_t, number_of_bases) \
 		VARIABLE(Date, date_received)
 	
 	#define VARIABLE(A, B) A B;
 		FILTER_INFO_MEMBERS
 	#undef VARIABLE
 
+	// The following variables are *not* serialized!
+	bool valid;
+
+	FilterInfo()
+	{
+		number_of_spots = 0;
+		number_of_bases = 0;
+
+		run_accession = INVALID_ACCESSION;
+		experiment_accession = INVALID_ACCESSION;
+		sample_accession = INVALID_ACCESSION;
+		study_accession = INVALID_ACCESSION;
+
+		valid = true;
+	};
+
 	std::string csv_string() const;
 	std::string json_string(const std::string &m_prefix) const;
+
+	// Sort by the number of bases
+	inline bool operator<(const FilterInfo &m_rhs) const
+	{
+		return (number_of_bases < m_rhs.number_of_bases);
+	};
 
 	template<class T> friend size_t mpi_size(const T &m_obj);
 	template<class T> friend unsigned char* mpi_pack(unsigned char* m_ptr,
@@ -501,6 +552,14 @@ struct BloomParam
 			(log_2_filter_len == m_rhs.log_2_filter_len) && 
 			(num_hash == m_rhs.num_hash) && 
 			(hash_func == m_rhs. hash_func);
+	};
+
+	inline bool operator!=(const BloomParam &m_rhs) const
+	{
+		return (kmer_len != m_rhs.kmer_len) ||
+			(log_2_filter_len != m_rhs.log_2_filter_len) || 
+			(num_hash != m_rhs.num_hash) || 
+			(hash_func != m_rhs. hash_func);
 	};
 
 	inline bool operator<(const BloomParam &m_rhs) const
@@ -660,96 +719,12 @@ template<> unsigned char* mpi_unpack(unsigned char* m_ptr, BloomFilter &m_obj);
 template<> void binary_write(std::ostream &m_out, const BloomFilter &m_obj);
 template<> void binary_read(std::istream &m_in, BloomFilter &m_obj);
 
-class SubFilter : public BitVector
-{
-	public:
-		enum {
-			INVALID_FILE = 0xFFFFFFFF,
-			INVALID_LOC = 0xFFFFFFFF
-		};
-		
-	private:
-	
-		unsigned int file_index;
-		unsigned int src_loc; // Either file or memory location
-		unsigned int dst_loc; // Order for output
-
-	public:
-		SubFilter() : file_index(INVALID_FILE), src_loc(INVALID_LOC), dst_loc(INVALID_LOC)
-		{
-		};
-		
-		~SubFilter()
-		{
-		}
-		
-		SubFilter(const SubFilter &m_rhs)
-		{
-			*this = m_rhs;
-		};
-				
-		// Enable deep copy construction
-		inline SubFilter& operator=(const SubFilter &m_rhs)
-		{
-			file_index = m_rhs.file_index;
-			src_loc = m_rhs.src_loc;
-			dst_loc = m_rhs.dst_loc;
-			
-			BitVector::operator=(m_rhs);
-			
-			return *this;
-		};
-
-		// Enable the sorting of SubFilters based on their
-		// destination index
-		inline bool operator<(const SubFilter &m_rhs) const
-		{
-			return dst_loc < m_rhs.dst_loc;
-		};
-
-		inline void set_src_loc(const unsigned int &m_loc)
-		{
-			src_loc = m_loc;
-		};
-		
-		inline unsigned int get_src_loc() const
-		{
-			return src_loc;
-		};
-		
-		inline void set_dst_loc(const unsigned int &m_loc)
-		{
-			dst_loc = m_loc;
-		};
-		
-		inline unsigned int get_dst_loc() const
-		{
-			return dst_loc;
-		};
-		
-		inline void set_file(const unsigned int &m_index)
-		{
-			file_index = m_index;
-		};
-		
-		inline unsigned int get_file() const
-		{
-			return file_index;
-		};
-
-		template<class T> friend size_t mpi_size(const T &m_obj);
-		template<class T> friend unsigned char* mpi_pack(unsigned char* m_ptr,
-			const T &m_obj);
-		template<class T> friend unsigned char* mpi_unpack(unsigned char* m_ptr, 
-			T &m_obj);
-};
-
-template<> size_t mpi_size(const SubFilter &m_obj);
-template<> unsigned char* mpi_pack(unsigned char* m_ptr, const SubFilter &m_obj);
-template<> unsigned char* mpi_unpack(unsigned char* m_ptr, SubFilter &m_obj);
-
 BloomParam optimal_bloom_param(const uint32_t &m_kmer_len, const size_t &m_num_kmer, 
 	const float &m_p, const HashFunction &m_func, const uint32_t &m_min_log_2_filter_len, 
 	const uint32_t &m_max_log_2_filter_len);
 
+size_t approximate_max_kmers(const float &m_p,
+	const HashFunction &m_func, const uint32_t &m_min_log_2_filter_len, 
+	const uint32_t &m_max_log_2_filter_len);
+	
 #endif // __BLOOM_FILTER

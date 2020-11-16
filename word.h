@@ -18,6 +18,14 @@ typedef		size_t	Word;
 // implementation. 
 enum {BASE_A, BASE_C, BASE_G, BASE_T};
 
+// A four bit binary base encoding
+enum {
+	BASE_4_A = 1,
+	BASE_4_C = 1 << 1,
+	BASE_4_G = 1 << 2,
+	BASE_4_T = 1 << 3
+};
+
 // Fast bit to base conversion (make sure the order of the characters in the string
 // matches the order of the enumeration).
 inline char bits_to_base(unsigned char m_binary_value)
@@ -62,7 +70,7 @@ _ITERATOR thresholded_unique(_ITERATOR m_begin, _ITERATOR m_end, const size_t &m
 }
 
 // Macros for digesting sequences into kmers
-#define ForEachDuplexWord(__SEQ, __LEN)\
+#define ForEachDuplexWord(__BEGIN, __END, __LEN)\
 	{\
 		const Word __comp_shift = BITS_PER_BASE*( (__LEN) - 1 );\
 		const Word __mask = kmer_word_mask(__LEN);\
@@ -71,7 +79,7 @@ _ITERATOR thresholded_unique(_ITERATOR m_begin, _ITERATOR m_end, const size_t &m
 		unsigned int __word_len = 0;\
 		size_t __k = __LEN;\
 		size_t __index = 0;\
-		for(std::string::const_iterator __i = (__SEQ).begin();__i != (__SEQ).end();++__i,++__index){ \
+		for(const char* __i = __BEGIN;__i != __END;++__i,++__index){ \
 			++__word_len;\
 			switch(*__i){\
 				case 'A': case 'a':\
@@ -80,29 +88,29 @@ _ITERATOR thresholded_unique(_ITERATOR m_begin, _ITERATOR m_end, const size_t &m
 					break;\
 				case 'T': case 't':\
 					__w = (__w << BITS_PER_BASE) | BASE_T;\
-                                	__comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_A) << __comp_shift);\
+                    __comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_A) << __comp_shift);\
 					break;\
 				case 'G': case 'g':\
 					__w = (__w << BITS_PER_BASE) | BASE_G;\
-                                	__comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_C) << __comp_shift);\
+                    __comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_C) << __comp_shift);\
 					break;\
 				case 'C': case 'c':\
 					__w = (__w << BITS_PER_BASE) | BASE_C;\
-                                	__comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_G) << __comp_shift);\
+                    __comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_G) << __comp_shift);\
 					break;\
 				default:\
 					__word_len = 0;\
 					break;\
 			};
 
-#define ForEachSenseWord(__SEQ, __LEN)\
+#define ForEachSenseWord(__BEGIN, __END, __LEN)\
 	{\
 		const Word __mask = kmer_word_mask(__LEN);\
 		Word __w = 0;\
 		unsigned int __word_len = 0;\
 		size_t __k = __LEN;\
 		size_t __index = 0;\
-		for(std::string::const_iterator __i = (__SEQ).begin();__i != (__SEQ).end();++__i,++__index){ \
+		for(const char* __i = __BEGIN;__i != __END;++__i,++__index){ \
 			++__word_len;\
 			switch(*__i){\
 				case 'A': case 'a':\
@@ -122,7 +130,7 @@ _ITERATOR thresholded_unique(_ITERATOR m_begin, _ITERATOR m_end, const size_t &m
 					break;\
 			};
 
-#define ForEachAntisenseWord(__SEQ, __LEN)\
+#define ForEachAntisenseWord(__BEGIN, __END, __LEN)\
 	{\
 		const Word __comp_shift = BITS_PER_BASE*( (__LEN) - 1 );\
 		const Word __mask = kmer_word_mask(__LEN);\
@@ -130,26 +138,26 @@ _ITERATOR thresholded_unique(_ITERATOR m_begin, _ITERATOR m_end, const size_t &m
 		unsigned int __word_len = 0;\
 		size_t __k = __LEN;\
 		size_t __index = 0;\
-		for(std::string::const_iterator __i = (__SEQ).begin();__i != (__SEQ).end();++__i,++__index){ \
+		for(const char* __i = __BEGIN;__i != __END;++__i,++__index){ \
 			++__word_len;\
 			switch(*__i){\
 				case 'A': case 'a':\
 					__comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_T) << __comp_shift);\
 					break;\
 				case 'T': case 't':\
-                                	__comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_A) << __comp_shift);\
+                    __comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_A) << __comp_shift);\
 					break;\
 				case 'G': case 'g':\
-                                	__comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_C) << __comp_shift);\
+                    __comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_C) << __comp_shift);\
 					break;\
 				case 'C': case 'c':\
-                                	__comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_G) << __comp_shift);\
+                    __comp_w = (__comp_w >> BITS_PER_BASE) | (Word(BASE_G) << __comp_shift);\
 					break;\
 				default:\
 					__word_len = 0;\
 					break;\
 			};
-				
+
 #define	ErrorWord	(__word_len == 0)
 #define	ValidWord	(__word_len >= __k)
 #define	SenseWord	(__w & __mask)

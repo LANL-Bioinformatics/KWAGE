@@ -3,6 +3,7 @@
 #include <zlib.h> // For crc32
 
 #include "bloom.h"
+#include "sra_accession.h"
 
 using namespace std;
 
@@ -40,7 +41,7 @@ BloomParam optimal_bloom_param(const uint32_t &m_kmer_len, const size_t &m_num_k
 		// Find the optimal number of hash functions for this filter length
 		for(uint32_t num_hash = MIN_NUM_HASH;num_hash <= MAX_NUM_HASH;++num_hash){
 			
-			const uint32_t len = 1U << ret.log_2_filter_len;
+			const uint64_t len = 1ULL << ret.log_2_filter_len;
 			
 			// The per-filter, per-k-mer probability of a false positive
 			const double p = pow(1.0 - pow(1.0 - 1.0/len, m_num_kmer*num_hash), num_hash);
@@ -66,10 +67,63 @@ BloomParam optimal_bloom_param(const uint32_t &m_kmer_len, const size_t &m_num_k
 	return ret;
 }
 
+// Estimate the maximum number of unqiue kmers before we can't find a valid set of
+// Bloom filter paramters.
+size_t approximate_max_kmers(const float &m_p,
+	const HashFunction &m_func, const uint32_t &m_min_log_2_filter_len, 
+	const uint32_t &m_max_log_2_filter_len)
+{
+	// Test the largest value a size_t can store
+	const size_t max_bits = 8*sizeof(size_t);
+
+	for(size_t log_2_num_kmer = 1;log_2_num_kmer < max_bits;++log_2_num_kmer){
+		
+		const size_t num_kmer = 1ULL << log_2_num_kmer;
+
+		// Perform a grid search to identify the *smallest* Bloom filter 
+		// that is less than the specified false positive rate.
+		//
+		// For Bloom filters of the same length, find the optimal number of hash
+		// functions (within the specified search limits).
+
+		bool valid = false;
+
+		for(size_t log_2_filter_len = m_min_log_2_filter_len;
+			(log_2_filter_len <= m_max_log_2_filter_len) && !valid;++log_2_filter_len){
+			
+			float best_p = 10.0f; // Any value > 1.0 to initialize
+
+			// Find the optimal number of hash functions for this filter length
+			for(uint32_t num_hash = MIN_NUM_HASH;(num_hash <= MAX_NUM_HASH) && !valid;++num_hash){
+				
+				const uint64_t len = 1ULL << log_2_filter_len;
+				
+				// The per-filter, per-k-mer probability of a false positive
+				const double p = pow(1.0 - pow(1.0 - 1.0/len, num_kmer*num_hash), num_hash);
+				
+				if( (p <= m_p) && (p < best_p) ){
+					
+					// We found valid Bloom filter parameters
+					valid = true;
+				}	
+			}
+		}
+
+		// Return the upper-bound size -- i.e. the smallest number of kmers for which we cannot
+		// find valid Bloom filter parameters
+		if(!valid){
+			return num_kmer;
+		}
+	}
+
+	// Could not estimate the max number of kmers -- return the largest possible value
+	return 0xFFFFFFFFFFFFFFFF;
+}
+
 // Output a limited subset of metadata in CSV
 string FilterInfo::csv_string() const
 {
-	return run_accession;
+	return accession_to_str(run_accession);
 }
 
 string FilterInfo::json_string(const string &m_prefix) const
@@ -78,20 +132,31 @@ string FilterInfo::json_string(const string &m_prefix) const
 
 	bool wrote_value = false;
 
-	if( !run_accession.empty() ){
+	if( run_accession != INVALID_ACCESSION){
 
-		ssout << m_prefix << "\"run\": \"" << run_accession << '"';
+		ssout << m_prefix << "\"run\": \"" << accession_to_str(run_accession) << '"';
 
 		wrote_value = true;
 	}
 
-	if( !experiment_accession.empty() ){
+	if( date_received.is_valid() ){
+	
+		if(wrote_value){
+			ssout << ",\n";
+		}
+
+		ssout << m_prefix << "\"date received\": \"" << date_received << '"';
+
+		wrote_value = true;
+	}
+
+	if(experiment_accession != INVALID_ACCESSION){
 
 		if(wrote_value){
 			ssout << ",\n";
 		}
 
-		ssout << m_prefix << "\"experiment\": \"" << experiment_accession << '"';
+		ssout << m_prefix << "\"experiment\": \"" << accession_to_str(experiment_accession) << '"';
 
 		wrote_value = true;
 	}
@@ -173,13 +238,13 @@ string FilterInfo::json_string(const string &m_prefix) const
 		wrote_value = true;
 	}
 
-	if( !sample_accession.empty() ){
+	if(sample_accession != INVALID_ACCESSION){
 
 		if(wrote_value){
 			ssout << ",\n";
 		}
 
-		ssout << m_prefix << "\"sample\": \"" << sample_accession << '"';
+		ssout << m_prefix << "\"sample\": \"" << accession_to_str(sample_accession) << '"';
 
 		wrote_value = true;
 	}
@@ -205,7 +270,7 @@ string FilterInfo::json_string(const string &m_prefix) const
 
 		ssout << m_prefix << "\"sample attributes\": [\n";
 
-		for(MULTIMAP<string, string>::const_iterator i = sample_attributes.begin();i != sample_attributes.end();++i){
+		for(MAP<string, string>::const_iterator i = sample_attributes.begin();i != sample_attributes.end();++i){
 
 			if(wrote_attribute_value){
 				ssout << ",\n";
@@ -224,13 +289,13 @@ string FilterInfo::json_string(const string &m_prefix) const
 		wrote_value = true;
 	}
 
-	if( !study_accession.empty() ){
+	if(study_accession != INVALID_ACCESSION){
 
 		if(wrote_value){
 			ssout << ",\n";
 		}
 
-		ssout << m_prefix << "\"study\": \"" << study_accession << '"';
+		ssout << m_prefix << "\"study\": \"" << accession_to_str(study_accession) << '"';
 
 		wrote_value = true;
 	}
@@ -262,8 +327,12 @@ string FilterInfo::json_string(const string &m_prefix) const
 
 unsigned int BitVector::crc32() const
 {
-	// Use the crc32 function provided by zlib
-	return ::crc32( 0U, buffer, num_block() );
+	// Use the crc32 function provided by zlib.
+	// The crc32 value must be initialized with a call
+	// to crc32_z with a zero length buffer.
+	const unsigned int init_crc32 = ::crc32_z(0L, Z_NULL, 0);
+
+	return ::crc32_z( init_crc32, buffer, num_block() );
 };
 
 unsigned int BloomFilter::update_crc32()

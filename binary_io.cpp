@@ -13,9 +13,12 @@ using namespace std;
 template<>
 void binary_write<string>(ostream &m_out, const string &m_str)
 {
-	binary_write( m_out, m_str.size() );
 	
-	m_out.write( m_str.c_str(), m_str.size() );
+	// Don't write the length of the string -- it takes up too much space
+	// for small strings
+	//binary_write( m_out, m_str.size() );
+	
+	m_out.write(m_str.c_str(), m_str.size() + 1); // Terminate the string with '\0'
 	
 	if(!m_out){
 		throw __FILE__ ":binary_write<string>: Unable to write string";
@@ -25,25 +28,28 @@ void binary_write<string>(ostream &m_out, const string &m_str)
 template<>
 void binary_read<string>(istream &m_in, string &m_str)
 {
-	size_t len;
-	
-	binary_read(m_in, len);
-	
-	char* buffer = new char [len];
+	deque<char> buffer;
 
-	if(buffer == NULL){
-		throw __FILE__ ":binary_read<string>: Unable to allocate buffer";
+	// Read one character at a time and stop when we encounter
+	// an end-of-string character
+	while(true){
+
+		char c;
+
+		m_in.read( &c, sizeof(char) );
+
+		if(c == '\0'){
+			break;
+		}
+
+		buffer.push_back(c);
 	}
-
-	m_in.read(buffer, len);
 
 	if(!m_in){
 		throw __FILE__ ":binary_read<string>: Unable to read string";
 	}
 	
-	m_str.assign(buffer, len);
-	
-	delete [] buffer;
+	m_str.assign( buffer.begin(), buffer.end() );
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -77,8 +83,14 @@ void binary_read<__uint128_t>(istream &m_in, __uint128_t &m_obj)
 template<> 
 void binary_write(ostream &m_out, const BitVector &m_obj)
 {
-	binary_write(m_out, m_obj.num_bits);
+	// The number of bits in the BitVector is *not* serialized! It must
+	// be serialized separately by the calling function!
+	//binary_write(m_out, m_obj.num_bits);
 	
+	if( (m_obj.buffer ==  NULL) && (m_obj.num_block() > 0) ){
+		throw __FILE__ ":binary_write<BitVector>: Attempting to write from an invalid BitVector";
+	}
+
 	m_out.write( (char*)m_obj.buffer, m_obj.num_block() );
 	
 	if(!m_out){
@@ -89,12 +101,16 @@ void binary_write(ostream &m_out, const BitVector &m_obj)
 template<> 
 void binary_read(istream &m_in, BitVector &m_obj)
 {
-	m_obj.clear();
+	// The number of bits in the BitVector is *not* serialized! It must
+	// be serialized separately by the calling function!
+	//m_obj.clear();
+	//binary_read(m_in, m_obj.num_bits);
+	//m_obj.resize(m_obj.num_bits);
 	
-	binary_read(m_in, m_obj.num_bits);
+	if( (m_obj.buffer ==  NULL) && (m_obj.num_block() > 0) ){
+		throw __FILE__ ":binary_read<BitVector>: Attempting to read into an empty BitVector";
+	}
 
-	m_obj.resize(m_obj.num_bits);
-	
 	m_in.read( (char*)m_obj.buffer, m_obj.num_block() );
 	
 	if(!m_in){
@@ -166,11 +182,29 @@ void binary_read(istream &m_in, FilterInfo &m_obj)
 template<> 
 void binary_write(ostream &m_out, const BloomFilter &m_obj)
 {
+	const size_t begin = m_out.tellp();
+
+	// The first 8 bits of the file are a magic number to
+	// guard against reading a partially written Bloom filter
+	binary_write( m_out, (unsigned char)(BLOOM_MAGIC_IN_PROGRESS) );
+
 	binary_write(m_out, m_obj.param);
 	binary_write(m_out, m_obj.bloom_crc32);
 	binary_write(m_out, m_obj.info);
 	binary_write<BitVector>(m_out, m_obj);
 	
+	const size_t end = m_out.tellp();
+
+	// Jump to the head of the filter and set the first 8 bits
+	// to indicate that the file is now complete
+	m_out.seekp(begin);
+
+	binary_write( m_out, (unsigned char)(BLOOM_MAGIC_COMPLETE) );
+
+	// Return to end of the filter so that we leave the
+	// ostream object in a valid state
+	m_out.seekp(end);
+
 	if(!m_out){
 		throw __FILE__ ":binary_write<BloomFilter>: Unable to write BloomFilter";
 	}
@@ -179,9 +213,22 @@ void binary_write(ostream &m_out, const BloomFilter &m_obj)
 template<> 
 void binary_read(istream &m_in, BloomFilter &m_obj)
 {
+	unsigned char magic;
+
+	binary_read(m_in, magic);
+
+	if(magic != BLOOM_MAGIC_COMPLETE){
+		throw __FILE__ ":binary_read<BloomFilter>: Filter record is not complete!";
+	}
+
 	binary_read(m_in, m_obj.param);
 	binary_read(m_in, m_obj.bloom_crc32);
 	binary_read(m_in, m_obj.info);
+
+	// The number of bits in a BitVector (and therefor a BloomFilter) are not
+	// serialized, and must be set *before* we read the underlying buffer
+	m_obj.resize( m_obj.param.filter_len() );
+
 	binary_read<BitVector>(m_in, m_obj);
 	
 	if(!m_in){

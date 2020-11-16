@@ -4,6 +4,10 @@
 #include <string>
 #include <iostream>
 
+// Needed to keep g++ happy (clang does not need these includes)
+#include "binary_io.h"
+#include "mpi_util.h"
+
 class Date
 {
 	private:

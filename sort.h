@@ -1,6 +1,8 @@
 #ifndef __SORT
 #define __SORT
 
+// While we can get OpenMP working on clang, I have not yet found a
+// way to use the Gnu parallel C++ api ...
 #if defined(_OPENMP) && !defined(__clang__)
 
 	#include <parallel/algorithm>
@@ -16,8 +18,8 @@
 	// * Slow/Low memory using balanced QS: __gnu_parallel::balanced_quicksort_tag()
 
 	// Enable OpenMP-based parallel sorting	
-	#define	SORT	__gnu_parallel::sort
-	//#define	SORT(X, Y)	__gnu_parallel::sort( (X), (Y), __gnu_parallel::balanced_quicksort_tag() )
+	//#define	SORT	__gnu_parallel::sort
+	#define	SORT(X, Y)	__gnu_parallel::sort( (X), (Y), __gnu_parallel::balanced_quicksort_tag() )
 #else
 	#include <algorithm>
 	
