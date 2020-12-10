@@ -12,30 +12,39 @@ DATABASE_OBJS = file_io.o binary_io.o sra_accession.o file_util.o ifind.o
 
 CC = mpic++
 
-PROFILE = -g
+PROFILE = #-g
 OPENMP = #-Xpreprocessor -fopenmp
 FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -mavx2 -std=c++11
+ 
+# Edit the SRA_LIB_PATH to point to the SRA toolkit libraries on your system
+SRA_LIB_PATH = $(HOME)/src/BIGSI/SRA/lib64
 
-INC = -I. \
-	-I$(HOME)/src/BIGSI/SRA/include \
-	-I$(HOME)/src/BIGSI/SRA/ncbi-vdb/interfaces \
-	-I$(HOME)/llvm-project/build-openmp/runtime/src
+# Edit the SRA_INCLUDE_PATH to point to the SRA toolkit header files on your system
+SRA_INCLUDE_PATH = $(HOME)/src/BIGSI/SRA/include
+
+# Edit the NCBI_VDB_INCLUDE_PATH to point to the NCBI-VDB header files on your system
+NCBI_VDB_INCLUDE_PATH = $(HOME)/src/BIGSI/SRA/ncbi-vdb/interfaces
 
 OMP_LIBS = #-L$(HOME)/llvm-project/build-openmp/runtime/src -lomp
+OMP_INCLUDE = #-I$(HOME)/llvm-project/build-openmp/runtime/src
+
+INC = -I. \
+	-I$(SRA_INCLUDE_PATH) \
+	-I$(NCBI_VDB_INCLUDE_PATH) \
+	$(OMP_INCLUDE)
 
 LIBS = -lm -lz \
-	-L$(HOME)/src/BIGSI/SRA/lib64 \
+	-L$(SRA_LIB_PATH) \
 	-lncbi-ngs-c++       \
 	-lngs-c++            \
 	-lncbi-vdb-static    \
 	-ldl
 
-
 .SUFFIXES : .o .cpp .c
 .cpp.o:
 	$(CC) $(FLAGS) $(INC) -c $<
 
-all: sra_inventory maestro sra_diff inventory_dump dump_db dump_bloom bigsi++ sra_dump \
+all: sra_inventory maestro sra_diff inventory_dump dump_db dump_bloom caldera sra_dump \
 	bloom_test bff bloom_diff manual_db merge_db compress_db
 	
 maestro : $(OBJS) maestro.o
@@ -44,8 +53,8 @@ maestro : $(OBJS) maestro.o
 bff : $(OBJS) bff.o
 	$(CC) $(PROFILE) -o bff $(OBJS) bff.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-bigsi++ : $(SEARCH_OBJS) bigsi++.o
-	$(CC) $(PROFILE) -o bigsi++ $(SEARCH_OBJS) bigsi++.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+caldera : $(SEARCH_OBJS) caldera.o
+	$(CC) $(PROFILE) -o caldera $(SEARCH_OBJS) caldera.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
 sra_inventory: $(INVENTORY_OBJS) sra_inventory.o
 	$(CC) $(PROFILE) -o sra_inventory $(INVENTORY_OBJS) sra_inventory.o $(LIBS) $(OMP_LIBS) $(OPENMP)
