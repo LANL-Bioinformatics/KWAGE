@@ -1,4 +1,4 @@
-// Build a BIGSI Bloom filter database from input Bloom filter files
+// Build a CALDERA Bloom filter database from input Bloom filter files
 // J. D. Gans
 // Bioscience Division, B-10
 // Los Alamos National Laboratory
@@ -12,7 +12,7 @@
 #include <zlib.h>
 
 #include "maestro.h"
-#include "bigsi++.h"
+#include "caldera.h"
 #include "mpi_util.h"
 #include "file_util.h"
 #include "binary_io.h"

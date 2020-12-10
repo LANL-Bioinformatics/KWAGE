@@ -11,14 +11,14 @@
 #include "options.h"
 #include "word.h"
 #include "file_util.h"
-#include "bigsi++.h"
+#include "caldera.h"
 #include "hash.h"
 #include "string_conversion.h"
 #include "maestro.h"
 
 using namespace std;
 
-// Enumerate the allowed ffile extensions for bigsi++ query sequence
+// Enumerate the allowed file extensions for the caldera query sequence(s)
 const char* allowed_sequence_extentions [] = {
 	".fna", ".fna.gz",
 	".fasta", ".fasta.gz",
@@ -115,7 +115,7 @@ SearchOptions::SearchOptions(int argc, char* argv[])
 
 		quit = true;
 
-		cerr << "Usage for bigsi++ (v. " << BIGSI_VERSION << "):" << endl;
+		cerr << "Usage for caldera (v. " << CALDERA_VERSION << "):" << endl;
 		cerr << "\t[-o <output file>] (default is stdout)" << endl;
 		cerr << "\t[--o.csv (output CSV) | --o.json (output JSON)]" << endl;
 		cerr << "\t[-t <search threshold>] (default is " 

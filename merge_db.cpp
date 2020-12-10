@@ -1,4 +1,4 @@
-// Merge BIGSI++ database files to avoid partially filled files
+// Merge CALDERA database files to avoid partially filled files
 // J. D. Gans
 // Bioscience Division, B-11
 // Los Alamos National Laboratory
@@ -13,7 +13,7 @@
 #include <getopt.h>
 #include <zlib.h>
 
-#include "bigsi++.h"
+#include "caldera.h"
 #include "bloom.h"
 #include "options.h"
 #include "string_conversion.h"

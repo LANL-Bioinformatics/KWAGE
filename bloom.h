@@ -120,6 +120,12 @@ class BitVector
 			// For combining distributed BitVectors with MPI Reduce
 			return buffer;
 		};
+
+		inline const BLOCK* ptr() const
+		{
+			// For combining distributed BitVectors with MPI Reduce
+			return buffer;
+		};
 		
 		// No bounds checking for fast access!
 		inline bool get_bit(const size_t &m_index) const
@@ -255,6 +261,20 @@ class BitVector
 			return *this;
 		};
 		
+		inline BitVector& operator^=(const BitVector &m_rhs)
+		{
+			if(num_bits != m_rhs.num_bits){				
+				throw __FILE__ ":BitVector::operator^=: Unequal lengths";
+			}
+			
+			// num_bits == m_rhs.num_bits
+			for(uint64_t i = 0;i < num_block();++i){
+				buffer[i] ^= m_rhs.buffer[i];
+			}
+			
+			return *this;
+		};
+
 		inline void resize(const size_t &m_num_bits)
 		{
 			clear();
@@ -379,7 +399,6 @@ class BitVector
 		// Count the number of bits that have been set to 1
 		inline size_t count() const
 		{
-			
 			size_t ret = 0;
 			
 			// For efficient bit counting, use the __builtin_popcountl intrinsic function
