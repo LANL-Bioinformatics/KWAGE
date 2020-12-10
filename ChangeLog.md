@@ -50,6 +50,8 @@
 - **Version 0.7** September 24, 2020
 	- Added the option to specify an optional list of SRA run accessions to include.
 
-# BIGSI++ changes
+# CALDERA changes
+- **Version 0.4c** December 10, 2020
+	- Changed program name from `bigsi++` to `caldera`.
 - **Version 0.4b** September 25, 2020
 	- Fixed supurious output when the input query is too small for a single kmer.
