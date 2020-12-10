@@ -1,25 +1,26 @@
-# BIGSI++
-A C++ reimplementation of the ultra-fast, [Bloom filter](https://en.wikipedia.org/wiki/Bloom_filter)-based sequence search originally developed by the [Iqbal group](https://www.nature.com/articles/s41587-018-0010-1). This project is similar in spirit to the Iqbal group's BIGSI follow-on project: [COBS: a Compact Bit-Sliced Signature Index](https://arxiv.org/abs/1905.09624). While the goals are very similar, the BIGSI++ project is an independent implementation of the original BIGSI algorithm with the addition of the following features:
+# CALDERA: Compressed Approach for Low-overhead Digital Exploration of Read Archives
+
+A C++ implementation of the ultra-fast, [Bloom filter](https://en.wikipedia.org/wiki/Bloom_filter)-based sequence search originally developed by the [Iqbal group](https://www.nature.com/articles/s41587-018-0010-1). This project is similar in spirit to the Iqbal group's BIGSI follow-on project: [COBS: a Compact Bit-Sliced Signature Index](https://arxiv.org/abs/1905.09624). While the goals are very similar, the CALDERA project is an independent implementation of the original BIGSI algorithm with the addition of the following features:
 1. Parallel, C++ implementation (using both OpenMP and MPI)
 2. Adaptive Bloom filter size (similar to COBS)
 3. Compressed database files
 4. Bloom filter construction directly from [Sequence Read Archive](https://www.ncbi.nlm.nih.gov/sra) (SRA) files
 
-The BIGSI++ pipeline has several components:
+The CALDERA pipeline has several components:
 1. `sra_inventory`
 	- Parse and convert the NCBI-supplied [SRA metadata information](tp://ftp.ncbi.nlm.nih.gov/sra/reports/Metadata) into a single binary file. This file is read by the `maestro` program to add metadata and annotation information to the final database files.
 2. `maestro`
 	- Streaming Bloom filter construction from SRA accessions.
 	- Aggregation and transposition of of individual Bloom filters into database files.
-3. `bigsi++`
+3. `caldera`
 	- Searching the resulting database with a nucleic acid query:.
 
 The following helper applications are also provided:
 1. `dump_db`, a tool for dumping the header, annotation, and first few bit slices of a database file.
-2. `SriRachA`, a tool for per-read, kmer-based searching of SRA records against a set of user-provided query sequences. This tool is useful for confirming and investigating the per-accession matches reported by BIGSI++. This tool is contained in the `SriRachA/` subdirectory (with a separate `Makefile` and `documentation`).
+2. `SriRachA`, a tool for per-read, kmer-based searching of SRA records against a set of user-provided query sequences. This tool is useful for confirming and investigating the per-accession matches reported by CALDERA. This tool is contained in the `SriRachA/` subdirectory (with a separate `Makefile` and `documentation`).
 
 ## Building and installing the code
-The BIGSI++ code is written in C++ and requires the MPI (message passing interface; I recommend [OpenMPI](https://www.open-mpi.org/)). A compiler that supports OpenMP is also suggested, but not required.
+The CALDERA code is written in C++ and requires the MPI (message passing interface; the code has been tested using [OpenMPI](https://www.open-mpi.org/)). A compiler that supports OpenMP is also suggested, but not required.
 
 Currently, downloading the SRA records is orchestrated by the `maestro` program. While previous versions relied on a cluster scheduling system (like Slurm), this dependancy has been **removed**. As discussed below, downloading the entire SRA to a private network (i.e. non-[AWS](https://aws.amazon.com/), non-[Google](https://cloud.google.com/)) is **not** going to work -- downloading will take too long for the several petabytes of SRA data.
 
@@ -38,7 +39,7 @@ It can be a little tricky to compile the ncbi-vdb, ngs and sra-tools packages. H
 
 1. Install the `git` repository control software (e.g. `sudo yum install git`).
 2. Install a c/c++ compiler (e.g. `sudo yum group install "Development Tools"`).
-4. Install a Java development kit (while Java is not used for BIGSI++, a jdk is needed to compile the ncbi.ngs package).
+4. Install a Java development kit (while Java is not used in CALDERA, a jdk is needed to compile the ncbi.ngs package).
 5. Install libxml2 development libraries (e.g. `sudo yum install libxml2-devel.x86_64`). Many Linux distributions ship with libxml2 but not the development headers, which will be needed.
 6. Create a directory to hold all of the NCBI SRA software (e.g. `mkdir SRA`). The rest of these instructions assume that the path to the SRA packages is `$HOME/SRA`.
 7. Download sra-tools from GitHub (e.g. `git clone https://github.com/ncbi/sra-tools.git`).
@@ -101,14 +102,14 @@ make install
 
 The options you select here will depend on your local compute environment (e.g. cloud vs local).
 
-### Step 2: Edit the BIGSI++ Makefile
-After the three separate NCBI software packages have been downloaded and compiled, you will need to edit the BIGSI++ Makefile to specify the locations of both the include and library directories for the ncbi-vdb and ngs packages.
+### Step 2: Edit the CALDERA Makefile
+After the three separate NCBI software packages have been downloaded and compiled, you will need to edit the CALDERA Makefile to specify the locations of both the include and library directories for the ncbi-vdb and ngs packages.
 
-Edit the `SRA_LIB_PATH` variable to point to the directory on your system that contains the SRA library files.
+Edit the `SRA_LIB_PATH` variable to specify the directory on your system that contains the SRA library files.
 
-Edit the `SRA_INCLUDE_PATH` variable to point to the directory on your system that contains the SRA include files.
+Edit the `SRA_INCLUDE_PATH` variable specify the directory on your system that contains the SRA include files.
 
-Edit the `NCBI_VDB_INCLUDE_PATH` variable to point to the directory on your system that contains the NCBI-VDB include files.
+Edit the `NCBI_VDB_INCLUDE_PATH` variable specify the directory on your system that contains the NCBI-VDB include files.
 
 ### Step 3: Run `make -j`
 
@@ -158,7 +159,7 @@ Usage for SRA inventory:
 
 ### SRA annotation information
 
-Currently, SRA annotation information is extracted from the XML metadata dowloaded from the NCBI and included in the Bloom filter files and the final BIGSI++ database. Unless noted, information is stored as a string. Since not all fields are provided for every SRA record, the string "NA" indicates a missing field.
+Currently, SRA annotation information is extracted from the XML metadata dowloaded from the NCBI and included in the Bloom filter files and the final CALDERA database. Unless noted, information is stored as a string. Since not all fields are provided for every SRA record, the string "NA" indicates a missing field.
 - Run
 	- Accession
 - Experiment
@@ -240,11 +241,11 @@ Usage for Maestro:
 
 ## Searching the database
 
-The `bigsi++` program enables searching the database files with one or more user-supplied DNA sequences. Currently, all of the database files must be stored on a POSIX filesystem (i.e. **not** on AWS S3).
+The `caldera` program enables searching the database files with one or more user-supplied DNA sequences. Currently, all of the database files must be stored on a POSIX filesystem (i.e. **not** on AWS S3).
 
 The command line arguments are:
 ```
-Usage for bigsi++:
+Usage for caldera:
 	[-o <output file>] (default is stdout)
 	[--o.csv (output CSV) | --o.json (output JSON)]
 	[-t <search threshold>] (default is 1)
