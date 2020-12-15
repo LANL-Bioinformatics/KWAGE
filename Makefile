@@ -44,8 +44,8 @@ LIBS = -lm -lz \
 .cpp.o:
 	$(CC) $(FLAGS) $(INC) -c $<
 
-all: sra_inventory maestro sra_diff inventory_dump dump_db dump_bloom caldera sra_dump \
-	bloom_test bff bloom_diff manual_db merge_db
+all: sra_inventory maestro sra_diff inventory_dump dump_db dump_bloom kwage sra_dump \
+	bloom_test bff bloom_diff manual_db merge_db compress_db
 	
 maestro : $(OBJS) maestro.o
 	$(CC) $(PROFILE) -o maestro $(OBJS) maestro.o $(LIBS) $(OMP_LIBS) $(OPENMP)
@@ -53,8 +53,8 @@ maestro : $(OBJS) maestro.o
 bff : $(OBJS) bff.o
 	$(CC) $(PROFILE) -o bff $(OBJS) bff.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
-caldera : $(SEARCH_OBJS) caldera.o
-	$(CC) $(PROFILE) -o caldera $(SEARCH_OBJS) caldera.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+kwage : $(SEARCH_OBJS) kwage.o
+	$(CC) $(PROFILE) -o kwage $(SEARCH_OBJS) kwage.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
 sra_inventory: $(INVENTORY_OBJS) sra_inventory.o
 	$(CC) $(PROFILE) -o sra_inventory $(INVENTORY_OBJS) sra_inventory.o $(LIBS) $(OMP_LIBS) $(OPENMP)
@@ -73,6 +73,9 @@ dump_db: $(INVENTORY_OBJS) dump_db.o
 
 merge_db: $(DATABASE_OBJS) merge_db.o
 	$(CC) $(PROFILE) -o merge_db $(DATABASE_OBJS) merge_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
+
+compress_db: $(DATABASE_OBJS) compress_db.o
+	$(CC) $(PROFILE) -o compress_db $(DATABASE_OBJS) compress_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
 manual_db: $(DATABASE_OBJS) manual_db.o
 	$(CC) $(PROFILE) -o manual_db $(DATABASE_OBJS) manual_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
