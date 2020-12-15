@@ -45,7 +45,7 @@ LIBS = -lm -lz \
 	$(CC) $(FLAGS) $(INC) -c $<
 
 all: sra_inventory maestro sra_diff inventory_dump dump_db dump_bloom kwage sra_dump \
-	bloom_test bff bloom_diff manual_db merge_db compress_db
+	bloom_test bff bloom_diff manual_db merge_db
 	
 maestro : $(OBJS) maestro.o
 	$(CC) $(PROFILE) -o maestro $(OBJS) maestro.o $(LIBS) $(OMP_LIBS) $(OPENMP)
@@ -73,9 +73,6 @@ dump_db: $(INVENTORY_OBJS) dump_db.o
 
 merge_db: $(DATABASE_OBJS) merge_db.o
 	$(CC) $(PROFILE) -o merge_db $(DATABASE_OBJS) merge_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
-
-compress_db: $(DATABASE_OBJS) compress_db.o
-	$(CC) $(PROFILE) -o compress_db $(DATABASE_OBJS) compress_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
 
 manual_db: $(DATABASE_OBJS) manual_db.o
 	$(CC) $(PROFILE) -o manual_db $(DATABASE_OBJS) manual_db.o $(LIBS) $(OMP_LIBS) $(OPENMP)
