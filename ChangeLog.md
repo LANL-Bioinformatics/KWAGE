@@ -50,8 +50,12 @@
 - **Version 0.7** September 24, 2020
 	- Added the option to specify an optional list of SRA run accessions to include.
 
-# CALDERA changes
+# KWAGE changes
+- **Version 0.4d** December 15, 2020
+	- Changed program name from `caldera` to `kwage`.
+	- KWAGE: "Kmer Warehousing Approach for Genomic Exploration" (and also the name of a local trail in Los Alamos, NM)
 - **Version 0.4c** December 10, 2020
 	- Changed program name from `bigsi++` to `caldera`.
+	- CALDERA: "Compressed Approach for Low-overhead Digital Exploration of Read Archives"
 - **Version 0.4b** September 25, 2020
 	- Fixed supurious output when the input query is too small for a single kmer.
