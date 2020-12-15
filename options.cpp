@@ -11,14 +11,14 @@
 #include "options.h"
 #include "word.h"
 #include "file_util.h"
-#include "caldera.h"
+#include "kwage.h"
 #include "hash.h"
 #include "string_conversion.h"
 #include "maestro.h"
 
 using namespace std;
 
-// Enumerate the allowed file extensions for the caldera query sequence(s)
+// Enumerate the allowed file extensions for the KWAGE query sequence(s)
 const char* allowed_sequence_extentions [] = {
 	".fna", ".fna.gz",
 	".fasta", ".fasta.gz",
@@ -115,7 +115,7 @@ SearchOptions::SearchOptions(int argc, char* argv[])
 
 		quit = true;
 
-		cerr << "Usage for caldera (v. " << CALDERA_VERSION << "):" << endl;
+		cerr << "Usage for KWAGE (v. " << KWAGE_VERSION << "):" << endl;
 		cerr << "\t[-o <output file>] (default is stdout)" << endl;
 		cerr << "\t[--o.csv (output CSV) | --o.json (output JSON)]" << endl;
 		cerr << "\t[-t <search threshold>] (default is " 

@@ -1,4 +1,4 @@
-// Dump the contents of CALDERA database file in a human readable
+// Dump the contents of KWAGE database file in a human readable
 // format.
 // J. D. Gans
 // Bioscience Division, B-11
@@ -13,7 +13,7 @@
 #include <math.h>
 #include <getopt.h>
 
-#include "caldera.h"
+#include "kwage.h"
 #include "bloom.h"
 #include "string_conversion.h"
 #include "keys.h"

@@ -1,4 +1,4 @@
-// Dump the contents of CALDERA Bloom filter file in a human readable
+// Dump the contents of KWAGE Bloom filter file in a human readable
 // format.
 // J. D. Gans
 // Bioscience Division, B-11
@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "caldera.h"
+#include "kwage.h"
 #include "bloom.h"
 
 using namespace std;
@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 		if(argc != 2){
 		
 			cerr << "Usage: " << argv[0] 
-				<< " <CALDERA Bloom filter file>" << endl;
+				<< " <KWAGE Bloom filter file>" << endl;
 			return EXIT_SUCCESS;
 		}
 		

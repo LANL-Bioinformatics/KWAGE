@@ -6,7 +6,7 @@
 #include <getopt.h>
 
 #include "maestro.h"
-#include "caldera.h"
+#include "kwage.h"
 
 using namespace std;
 

@@ -7,7 +7,7 @@
 #include "bloom.h"
 #include "parse_tar.h"
 #include "file_util.h"
-#include "caldera.h" // For INVENTORY_VERSION
+#include "kwage.h" // For INVENTORY_VERSION
 #include "split.h"
 #include "date.h"
 #include "string_conversion.h"
