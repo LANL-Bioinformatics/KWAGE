@@ -13,7 +13,7 @@ The KWAGE pipeline has several components:
 	- Streaming Bloom filter construction from SRA accessions.
 	- Aggregation and transposition of of individual Bloom filters into database files.
 3. `kwage`
-	- Searching the resulting database with a nucleic acid query:.
+	- Searching the resulting database with a nucleic acid query.
 
 The following helper applications are also provided:
 1. `dump_db`, a tool for dumping the header, annotation, and first few bit slices of a database file.
