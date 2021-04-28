@@ -17,13 +17,13 @@ OPENMP = #-Xpreprocessor -fopenmp
 FLAGS = $(PROFILE) -O3 -Wall $(OPENMP) -mavx2 -std=c++11
  
 # Edit the SRA_LIB_PATH to point to the SRA toolkit libraries on your system
-SRA_LIB_PATH = $(HOME)/src/BIGSI/SRA/lib64
+SRA_LIB_PATH = $(HOME)/src/KWAGE/SRA/lib64
 
 # Edit the SRA_INCLUDE_PATH to point to the SRA toolkit header files on your system
-SRA_INCLUDE_PATH = $(HOME)/src/BIGSI/SRA/include
+SRA_INCLUDE_PATH = $(HOME)/src/KWAGE/SRA/include
 
 # Edit the NCBI_VDB_INCLUDE_PATH to point to the NCBI-VDB header files on your system
-NCBI_VDB_INCLUDE_PATH = $(HOME)/src/BIGSI/SRA/ncbi-vdb/interfaces
+NCBI_VDB_INCLUDE_PATH = $(HOME)/src/KWAGE/SRA/ncbi-vdb/interfaces
 
 OMP_LIBS = #-L$(HOME)/llvm-project/build-openmp/runtime/src -lomp
 OMP_INCLUDE = #-I$(HOME)/llvm-project/build-openmp/runtime/src
