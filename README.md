@@ -113,7 +113,7 @@ Edit the `NCBI_VDB_INCLUDE_PATH` variable specify the directory on your system t
 
 ### Step 3: Run `make -j`
 
-Running `make` in the BIGS++ directory will build all pipeline components. There is no separate installation step required. If you encounter any problems, please email `jgans@lanl.gov` for assistance.
+Running `make` in the KWAGE directory will build all pipeline components. There is no separate installation step required. If you encounter any problems, please email `jgans@lanl.gov` for assistance.
 
 ## Format the NCBI SRA metadata information
 
