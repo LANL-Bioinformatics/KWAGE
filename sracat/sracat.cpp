@@ -92,8 +92,6 @@ int main(int argc, char *argv[])
 		for(deque<string>::const_iterator acc = sra_records.begin();acc != sra_records.end();++acc){
 
 			ngs::ReadCollection run( ncbi::NGS::openReadCollection(*acc) );
-			
-			size_t output_read_count = 0; // For labeling the output reads
 
 			const string accession_name = run.getName();
 
@@ -109,12 +107,12 @@ int main(int argc, char *argv[])
 				ngs::ReadIterator( run.getReadRange ( 1, num_read, ngs::Read::all ) );
 
 			size_t read_count = 0;
+			size_t total_read_count = 0;
 
 			const size_t update_every = max(num_read/100ULL, 1ULL);
 
 			while( run_iter.nextRead() ){
 				
-				++output_read_count;
 				++read_count;
 
 				size_t seq_count = 0;
@@ -122,6 +120,7 @@ int main(int argc, char *argv[])
 				while( run_iter.nextFragment() ){
 					
 					++seq_count;
+					++total_read_count;
 
 					const ngs::StringRef &seq = run_iter.getFragmentBases();
 					
@@ -169,15 +168,15 @@ int main(int argc, char *argv[])
 						const ngs::StringRef &phred_q = run_iter.getFragmentQualities();
 
 						if(out == NULL){
-							printf( "@%s.%lu.%lu\n%s\n+\n%s\n", accession_name.c_str(), output_read_count, seq_count, 
+							printf( "@%s.%lu.%lu\n%s\n+\n%s\n", accession_name.c_str(), read_count, seq_count, 
 								seq.toString().c_str(), phred_q.toString().c_str() );
 						}
 						else{
-							gzprintf( out, "@%s.%lu\n%s\n+\n%s\n", accession_name.c_str(), output_read_count, 
+							gzprintf( out, "@%s.%lu\n%s\n+\n%s\n", accession_name.c_str(), read_count, 
 								seq.toString().c_str(), phred_q.toString().c_str() );
 						}
 
-						//out << "@" << accession_name << '.' << output_read_count << '.' << seq_count << '\n' << seq << '\n';
+						//out << "@" << accession_name << '.' << read_count << '.' << seq_count << '\n' << seq << '\n';
 						//out << '+' << '\n';
 						//out << phred_q << endl;
 					}
@@ -185,15 +184,15 @@ int main(int argc, char *argv[])
 
 						// fasta output
 						if(out == NULL){
-							printf( ">%s.%lu.%lu\n%s\n", accession_name.c_str(), output_read_count, seq_count, 
+							printf( ">%s.%lu.%lu\n%s\n", accession_name.c_str(), read_count, seq_count, 
 								seq.toString().c_str() );
 						}
 						else{
-							gzprintf( out, ">%s.%lu\n%s\n", accession_name.c_str(), output_read_count, 
+							gzprintf( out, ">%s.%lu\n%s\n", accession_name.c_str(), read_count, 
 								seq.toString().c_str() );
 						}
 
-						//out << ">" << accession_name << '.' << output_read_count << '.' << seq_count << '\n' << seq << endl;
+						//out << ">" << accession_name << '.' << read_count << '.' << seq_count << '\n' << seq << endl;
 					}
 				}
 
@@ -212,7 +211,13 @@ int main(int argc, char *argv[])
 			}
 
 			if(verbose){
+
 				cerr << endl;
+
+				// Use the same nomenclature as the fasterq-dump program from the SRA toolkit
+				cerr << "spots read      : " << read_count << endl;
+				cerr << "reads read      : " << total_read_count << endl;
+				cerr << "reads written   : " << total_read_count << endl;
 			}
 		}
 
