@@ -1,13 +1,16 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <deque>
 #include <ncbi-vdb/NGS.hpp> // For openReadCollection
 #include <getopt.h>
+#include <zlib.h>
+#include <stdio.h>
 
 using namespace std;
 
-#define		SRACAT_VERSION		"0.1"
+#define		SRACAT_VERSION		"0.2"
 
 void clear_buffer(ostream &m_out, const string &m_buffer);
 
@@ -15,7 +18,7 @@ int main(int argc, char *argv[])
 {
 	try{
 
-		const char* options = "o:v?h";
+		const char* options = "o:zv?h";
 		int config_opt = 0;
 		int long_index = 0;
 
@@ -30,7 +33,8 @@ int main(int argc, char *argv[])
 		bool print_usage = false;
 		bool verbose = false;
 		bool qual = false; // fasta by default, but switch to fastq if quality scores are requested
-		string output_filename;
+		bool compress_output = false;
+		string output_prefix;
 		deque<string> sra_records;
 
 		while( (opt_code = getopt_long( argc, argv, options, long_opts, &long_index) ) != EOF ){
@@ -47,7 +51,7 @@ int main(int argc, char *argv[])
 					cerr << "Unknown command line flag!" << endl;
 					return EXIT_FAILURE;
 				case 'o':
-					output_filename = optarg;
+					output_prefix = optarg;
 					break;
 				case 'h':
 				case '?':
@@ -56,6 +60,9 @@ int main(int argc, char *argv[])
 					break;
 				case 'v':
 					verbose = true;
+					break;
+				case 'z':
+					compress_output = true;
 					break;
 				default:
 					cerr << '\"' << (char)opt_code << "\" is not a valid option!" << endl;
@@ -70,41 +77,23 @@ int main(int argc, char *argv[])
 		if(print_usage){
 
 			cerr << "Usage for sracat (v. " << SRACAT_VERSION << ")" << endl;
-			cerr << "\t[-o <output file>] (default is stdout)" << endl;
+			cerr << "\t[-o <output file *prefix*>] (default is stdout)" << endl;
+			cerr << "\t[-z] (zlib-based compression of file-based output; default is no compression)" << endl;
 			cerr << "\t[--qual] (fastq output)" << endl;
 			cerr << "\t<SRA accession/file 1> ..." << endl;
 
 			return EXIT_SUCCESS;
 		}
 		
-		ofstream fout;
-
-		if( !output_filename.empty() ){
-
-			fout.open( output_filename.c_str() );
-
-			if(!fout){
-
-				cerr << "Unable to open " << output_filename << " for writing" << endl;
-				return EXIT_FAILURE;
-			}
-		}
-
-		ostream &out = fout.is_open() ? fout : cout;
+		// When writing to a file, each "spot" can be associated with multiple reads (i.e. read 1 and 2 for Illumina)
+		// Partition the different read types into separate files
+		deque<gzFile> fout;
 
 		for(deque<string>::const_iterator acc = sra_records.begin();acc != sra_records.end();++acc){
 
 			ngs::ReadCollection run( ncbi::NGS::openReadCollection(*acc) );
 			
 			size_t output_read_count = 0; // For labeling the output reads
-
-			// Following the advice of Kurt Rodamer @ NCBI
-			// ** Note that this approach will *miss* a small number of reads that are only
-			// ** partially aligned (i.e. only one read of a pair aligned). If all reads
-			// ** in an SRA record are needed, then iterate through all reads using
-			// ** ngs::ReadIterator( run.getReadRange ( 1, num_read, ngs::Read::all ) );
-			// Step 1: Does the SRA record contain aligned reads?
-			const size_t num_primary_align = run.getAlignmentCount(ngs::Alignment::primaryAlignment);
 
 			const string accession_name = run.getName();
 
@@ -114,144 +103,125 @@ int main(int argc, char *argv[])
 
 			string verbose_buffer;
 
-			if(num_primary_align > 0){
+			const size_t num_read = run.getReadCount(ngs::Read::all);
 
-				if(qual){
-					cerr << "fastq output is not supported for aligned reads, switching to fasta" << endl;
-				}
+			ngs::ReadIterator run_iter = 
+				ngs::ReadIterator( run.getReadRange ( 1, num_read, ngs::Read::all ) );
 
-				// Read the primaryAlignment
-				ngs::AlignmentIterator align_iter = run.getAlignments(ngs::Alignment::primaryAlignment);
+			size_t read_count = 0;
 
-				size_t align_count = 0;
+			const size_t update_every = max(num_read/100ULL, 1ULL);
 
-				const size_t update_every = max(num_primary_align/100ULL, 1ULL);
+			while( run_iter.nextRead() ){
+				
+				++output_read_count;
+				++read_count;
 
-				while(align_iter.nextAlignment() ){
+				size_t seq_count = 0;
 
-					++output_read_count;
-					++align_count;
-
-					const ngs::StringRef &seq = align_iter.getAlignedFragmentBases();
-
-					// Only FASTA is supported for now
-					out << ">" << accession_name << "." << output_read_count << '\n' << seq << endl;
-
-					if( verbose && (align_count%update_every == 0) ){
-
-						stringstream ssout;
-
-						ssout << "primary " << (100.0*align_count)/num_primary_align << "%";
-
-						clear_buffer(cerr, verbose_buffer);
-
-						verbose_buffer = ssout.str();
-
-						cerr << verbose_buffer;
-					}
-				}
-
-				// Read the unaligned sequences
-				const size_t num_unaligned_read = run.getReadCount(ngs::Read::unaligned);
-
-				if(num_unaligned_read > 0){
-
-					// Need to use getReads() -- getReadRange() does not appear to work for unaligned reads
-					ngs::ReadIterator run_iter = ngs::ReadIterator( run.getReads(ngs::Read::unaligned) );
-
-					size_t read_count = 0;
-
-					const size_t update_every = max(num_unaligned_read/100ULL, 1ULL);
-
-					while( run_iter.nextRead() ){
-						
-						++output_read_count;
-						++read_count;
-
-						size_t seq_count = 0;
-
-						while( run_iter.nextFragment() ){
-							
-							++seq_count;
-													
-							const ngs::StringRef &seq = run_iter.getFragmentBases();
-							
-							// Only fasta is supported for now
-							out << ">" << accession_name << '.' << output_read_count << '.' << seq_count << '\n' << seq << endl;
-						}
-
-						if( verbose && (read_count%update_every == 0) ){
-
-							stringstream ssout;
-
-							ssout << "unaligned " << (100.0*read_count)/num_unaligned_read << "%";
-
-							clear_buffer(cerr, verbose_buffer);
-
-							verbose_buffer = ssout.str();
-
-							cerr << verbose_buffer;
-						}
-					}				
-				}
-			}
-			else{
-
-				const size_t num_read = run.getReadCount(ngs::Read::all);
-
-				ngs::ReadIterator run_iter = 
-					ngs::ReadIterator( run.getReadRange ( 1, num_read, ngs::Read::all ) );
-
-				size_t read_count = 0;
-
-				const size_t update_every = max(num_read/100ULL, 1ULL);
-
-				while( run_iter.nextRead() ){
+				while( run_iter.nextFragment() ){
 					
-					++output_read_count;
-					++read_count;
+					++seq_count;
 
-					size_t seq_count = 0;
+					const ngs::StringRef &seq = run_iter.getFragmentBases();
+					
+					gzFile out = NULL;
 
-					while( run_iter.nextFragment() ){
-						
-						++seq_count;
+					if( !output_prefix.empty() ){
 
-						const ngs::StringRef &seq = run_iter.getFragmentBases();
-						
-						if(qual){
+						if(fout.size() < seq_count){
 
-							// fastq output
-							const ngs::StringRef &phred_q = run_iter.getFragmentQualities();
+							// Open a new file
+							stringstream filename;
+							
+							filename << output_prefix << '_' << seq_count;
 
-							out << "@" << accession_name << '.' << output_read_count << '.' << seq_count << '\n' << seq << '\n';
-							out << '+' << '\n';
-							out << phred_q << endl;
+							if(qual){
+								filename << ".fastq";
+							}
+							else{
+								filename << ".fna";
+							}
+
+							if(compress_output){
+
+								filename << ".gz";
+								fout.push_back( gzopen( filename.str().c_str(), "w") );
+							}
+							else{
+								// THe 'T' flag disables compression
+								fout.push_back( gzopen( filename.str().c_str(), "wT") );
+							}
+
+							if(fout.back() == NULL){
+								
+								cerr << "Unable to open: " << filename.str() << endl;
+								throw "Unable to open output file for writing";
+							}
+						}
+
+						out = fout[seq_count - 1];
+					}
+
+					if(qual){
+
+						// fastq output
+						const ngs::StringRef &phred_q = run_iter.getFragmentQualities();
+
+						if(out == NULL){
+							printf( "@%s.%lu.%lu\n%s\n+\n%s\n", accession_name.c_str(), output_read_count, seq_count, 
+								seq.toString().c_str(), phred_q.toString().c_str() );
 						}
 						else{
-
-							// fasta output
-							out << ">" << accession_name << '.' << output_read_count << '.' << seq_count << '\n' << seq << endl;
+							gzprintf( out, "@%s.%lu\n%s\n+\n%s\n", accession_name.c_str(), output_read_count, 
+								seq.toString().c_str(), phred_q.toString().c_str() );
 						}
+
+						//out << "@" << accession_name << '.' << output_read_count << '.' << seq_count << '\n' << seq << '\n';
+						//out << '+' << '\n';
+						//out << phred_q << endl;
 					}
+					else{
 
-					if( verbose && (read_count%update_every == 0) ){
+						// fasta output
+						if(out == NULL){
+							printf( ">%s.%lu.%lu\n%s\n", accession_name.c_str(), output_read_count, seq_count, 
+								seq.toString().c_str() );
+						}
+						else{
+							gzprintf( out, ">%s.%lu\n%s\n", accession_name.c_str(), output_read_count, 
+								seq.toString().c_str() );
+						}
 
-						stringstream ssout;
-
-						ssout << (100.0*read_count)/num_read << "%";
-
-						clear_buffer(cerr, verbose_buffer);
-
-						verbose_buffer = ssout.str();
-
-						cerr << verbose_buffer;
+						//out << ">" << accession_name << '.' << output_read_count << '.' << seq_count << '\n' << seq << endl;
 					}
+				}
+
+				if( verbose && (read_count%update_every == 0) ){
+
+					stringstream ssout;
+
+					ssout << setprecision(3) << (100.0*read_count)/num_read << "%";
+
+					clear_buffer(cerr, verbose_buffer);
+
+					verbose_buffer = ssout.str();
+
+					cerr << verbose_buffer;
 				}
 			}
 
 			if(verbose){
 				cerr << endl;
+			}
+		}
+
+		for(deque<gzFile>::iterator f = fout.begin();f != fout.end();++f){
+
+			if(*f != NULL){
+
+				gzclose(*f);
+				*f = NULL;
 			}
 		}
 	}
