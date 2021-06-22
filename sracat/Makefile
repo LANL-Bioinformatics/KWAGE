@@ -17,8 +17,9 @@ INC = -I. -I$(SRA_PATH)/include
 
 # 1) The order of the libraries in LIBS is important for g++, do not change!
 # 2) g++ requires -lpthread, while clang does not
+# 3) g++ requires -ldl to be specified (last)
 LIBS = -lm -lz -lpthread -L$(SRA_PATH)/lib64 \
-	-lncbi-ngs-c++ -lncbi-ngs -lngs-c++ -lncbi-vdb-static
+	-lncbi-ngs-c++ -lncbi-ngs -lngs-c++ -lncbi-vdb-static -ldl
 	
 .SUFFIXES : .o .cpp .c
 .cpp.o:
